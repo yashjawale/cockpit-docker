@@ -3,9 +3,15 @@
         "cockpit": "137"
     },
 
-    "tools": {
+    "menu": {
         "index": {
-            "label": "Starter Kit"
+            "label": "Docker containers",
+            "order": 50,
+            "keywords": [
+                {
+                    "matches": ["docker", "virtualization", "compose", "images"]
+                }
+            ]
         }
     }
 }

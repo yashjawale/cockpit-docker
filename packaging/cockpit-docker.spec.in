@@ -1,4 +1,4 @@
-Name: cockpit-starter-kit
+Name: cockpit-docker
 Version: %{VERSION}
 Release: 1%{?dist}
 Summary: Cockpit Starter Kit Example Module
@@ -9,8 +9,8 @@ License: LGPL-2.1-or-later
 %define rebuild_bundle 1
 %endif
 
-Source0: https://github.com/cockpit-project/starter-kit/releases/download/%{version}/%{name}-%{version}.tar.xz
-Source1: https://github.com/cockpit-project/starter-kit/releases/download/%{version}/%{name}-node-%{version}.tar.xz
+Source0: https://github.com/yashjawale/cockpit-docker/releases/download/%{version}/%{name}-%{version}.tar.xz
+Source1: https://github.com/yashjawale/cockpit-docker/releases/download/%{version}/%{name}-node-%{version}.tar.xz
 
 BuildArch: noarch
 %if ! 0%{?suse_version}

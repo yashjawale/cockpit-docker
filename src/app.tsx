@@ -25,7 +25,7 @@ export const Application = () => {
     return (
         <Page className='pf-m-no-sidebar'>
             <Card>
-                <CardTitle>Starter Kit</CardTitle>
+                <CardTitle>Cockpit Docker</CardTitle>
                 <CardBody>
                     <Alert
                     variant="info"

@@ -1,6 +1,56 @@
-// SPDX-License-Identifier: LGPL-2.1-or-later
+/* SPDX-License-Identifier: LGPL-2.1-or-later */
+@use "ct-card.scss";
 @use "page.scss";
+@use "global-variables" as *;
 
-p {
-    font-weight: bold;
+#app .pf-v6-c-card.containers-images {
+    @extend .ct-card;
+}
+
+#containers-images {
+    // Decrease padding for the image/container toggle button list
+    .pf-v6-c-table.pf-m-compact .pf-v6-c-table__toggle {
+        padding-inline-start: 0;
+    }
+
+    // don't make the columns too narrow
+    th .pf-v6-c-table__text {
+        min-inline-size: fit-content;
+    }
+}
+
+.pf-v6-c-alert__description {
+    overflow-wrap: anywhere;
+}
+
+.listing-action {
+    inline-size: 100%;
+    display: flex;
+    justify-content: space-around;
+}
+
+.ct-badge-container-running {
+    background-color: var(--pf-t--global--color--status--info--default);
+    color: var(--pf-t--global--text--color--status--on-info--default);
+}
+
+.ct-grey-text {
+    color: var(--pf-t--global--text--color--subtle);
+}
+
+.content-action {
+    text-align: end;
+    white-space: nowrap !important;
+}
+
+@media (max-width: $pf-v6-global--breakpoint--md - 1) {
+    .show-only-when-wide {
+        display: none;
+    }
+}
+
+@media (min-width: $pf-v6-global--breakpoint--md) {
+    .show-only-when-narrow {
+        display: none;
+    }
 }

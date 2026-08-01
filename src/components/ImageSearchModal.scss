@@ -1,0 +1,61 @@
+/*
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ * Styling for the image search dialog.
+ */
+
+.docker-search .pf-v6-c-modal-box__body {
+    display: grid;
+    grid-auto-flow: row;
+    overflow: hidden;
+    grid-template-rows: auto auto 1fr;
+    gap: var(--pf-t--global--spacer--sm);
+}
+
+.image-list-item {
+    display: grid;
+    gap: 0 1rem;
+}
+
+.image-list-item + .image-list-item {
+    border-block-start: 1px solid var(--pf-t--global--border--color--default);
+}
+
+.image-list-item > .image-name {
+    color: var(--pf-t--global--background--color--primary--default);
+}
+
+@media (width >= 768px) {
+    .image-list-item {
+        grid-template-columns: 1fr max-content;
+    }
+}
+
+.docker-search .image-search-modal-footer-grid {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 0.25rem;
+}
+
+.image-tag-entry {
+    max-inline-size: 15rem;
+}
+
+@media (width <= 340px) {
+    /* Shrink buttons to accommodate iPhone 5/SE */
+    .docker-search .modal-footer > .btn {
+        padding-inline: 0.25rem;
+    }
+}
+
+.image-search-tag-form {
+    margin-block-end: var(--pf-t--global--spacer--md);
+}
+
+.docker-search .pf-v6-c-modal-box__footer {
+    display: initial;
+}
+
+.docker-search .pf-v6-c-data-list {
+    overflow-y: auto;
+}

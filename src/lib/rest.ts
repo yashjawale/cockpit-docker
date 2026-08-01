@@ -1,5 +1,7 @@
 /*
  * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ * Low-level HTTP connection handling for the Docker daemon unix socket.
  */
 
 import cockpit from "cockpit";
@@ -37,6 +39,7 @@ function format_error(error: object, content: unknown): object {
 // calls are async, so keep track of a call counter to associate a result with a call
 let call_id = 0;
 
+/** Unix socket path of the system-wide Docker daemon, only reachable by root */
 const DOCKER_SYSTEM_ADDRESS = "/var/run/docker.sock";
 
 /** A standard Unix UID, or null for the logged in session user */
@@ -83,8 +86,11 @@ function splitAtNLNL(text: string): [string, string | null] {
     return [text.slice(0, idx), text.slice(idx + 4)];
 }
 
+/** Callback invoked with each parsed JSON message of a streaming endpoint */
 export type MonitorCallbackJson = (data: JsonObject) => void;
+/** Callback invoked with each raw message of a streaming endpoint */
 export type MonitorCallbackRaw = (data: string) => void;
+/** Union of the possible monitor callbacks, selected via the return_raw flag */
 export type MonitorCallback = MonitorCallbackJson | MonitorCallbackRaw;
 
 // type predicate helper for narrowing which monitor callback is being used
@@ -220,6 +226,8 @@ function connect(uid: Uid): Connection {
 }
 
 export default {
+    /** Establish a connection to the Docker daemon for the given user */
     connect,
+    /** Resolve the Docker daemon socket address for a given user */
     getAddress,
 };

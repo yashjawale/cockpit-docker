@@ -1,12 +1,16 @@
 /*
  * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ * Docker Engine API client wrapping the daemon's HTTP endpoints.
  */
 
 import type { JsonObject, JsonValue } from "cockpit";
 
 import type { Connection, MonitorCallback } from "./rest.ts";
 
-// Docker Engine API version; oldest one that we support
+import type { DockerContainer, DockerImage, ImageHistoryLayer, ImageSearchResult } from "./types.ts";
+
+/** Docker Engine API version prefix; the oldest version that we support */
 export const VERSION = "/v1.41/";
 
 /**
@@ -71,7 +75,9 @@ export function getInfo(con: Connection): Promise<JsonObject> {
  * @param con An established Docker API connection
  * @returns A promise resolving to a list of container summaries
  */
-export const getContainers = (con: Connection) => dockerJson(con, "containers/json", "GET", { all: true });
+export const getContainers = (con: Connection): Promise<DockerContainer[]> =>
+    dockerJson(con, "containers/json", "GET", { all: true })
+            .then(reply => reply as unknown as DockerContainer[]);
 
 /**
  * Stream usage statistics for all running containers.
@@ -89,11 +95,12 @@ export const streamContainerStats = (con: Connection, callback: MonitorCallback)
  * @param id  Id or name of the container
  * @returns A promise resolving to the container's full inspect object
  */
-export function inspectContainer(con: Connection, id: string) {
+export function inspectContainer(con: Connection, id: string): Promise<DockerContainer> {
     const options = {
         size: false // set true to display filesystem usage
     };
-    return dockerJson(con, `containers/${id}/json`, "GET", options);
+    return dockerJson(con, `containers/${id}/json`, "GET", options)
+            .then(reply => reply as unknown as DockerContainer);
 }
 
 /**
@@ -119,9 +126,10 @@ export const renameContainer = (con: Connection, id: string, name: string) => do
  *
  * @param con    An established Docker API connection
  * @param config Container configuration used as the request body
+ * @param name   Optional unique name for the container, passed as query parameter
  * @returns A promise resolving to the id of the created container
  */
-export const createContainer = (con: Connection, config: JsonObject) => dockerJson(con, "containers/create", "POST", {}, JSON.stringify(config));
+export const createContainer = (con: Connection, config: JsonObject, name?: string) => dockerJson(con, "containers/create", "POST", name ? { name } : {}, JSON.stringify(config));
 
 /**
  * Create a new image from a container's changes.
@@ -212,7 +220,7 @@ function parseImageInfo(info: JsonObject): JsonObject {
  * @param id  Optional id of a single image to filter by
  * @returns A promise resolving to a map of image id to its summary plus config metadata
  */
-export function getImages(con: Connection, id?: string) {
+export function getImages(con: Connection, id?: string): Promise<Record<string, Omit<DockerImage, "key">>> {
     const options: JsonObject = {};
     if (id)
         options.filters = JSON.stringify({ id: [id] });
@@ -235,7 +243,8 @@ export function getImages(con: Connection, id?: string) {
                             }
                             return images;
                         });
-            });
+            })
+            .then(images => images as unknown as Record<string, Omit<DockerImage, "key">>);
 }
 
 /**
@@ -295,6 +304,18 @@ export function pullImage(con: Connection, reference: string) {
 }
 
 /**
+ * Search the registry for images matching the given search term.
+ *
+ * Searches the daemon's default registry (Docker Hub) on the user's behalf.
+ *
+ * @param con  An established Docker API connection
+ * @param term Search term to look up in the registry
+ */
+export const searchImages = (con: Connection, term: string): Promise<ImageSearchResult[]> =>
+    dockerJson(con, "images/search", "GET", { term })
+            .then(reply => reply as unknown as ImageSearchResult[]);
+
+/**
  * Remove all unused images, not just dangling ones.
  *
  * @param con An established Docker API connection
@@ -308,7 +329,9 @@ export const pruneUnusedImages = (con: Connection) => dockerJson(con, "images/pr
  * @param con An established Docker API connection
  * @param id  Id or name of the image
  */
-export const imageHistory = (con: Connection, id: string) => dockerJson(con, `images/${id}/history`, "GET", {});
+export const imageHistory = (con: Connection, id: string): Promise<ImageHistoryLayer[]> =>
+    dockerJson(con, `images/${id}/history`, "GET", {})
+            .then(reply => reply as unknown as ImageHistoryLayer[]);
 
 /**
  * Check whether an image exists, resolving on success and rejecting with a 404 error otherwise.

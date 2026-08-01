@@ -21,7 +21,7 @@ import { superuser } from "superuser";
 import ContainerHeader from './components/ContainerHeader.tsx';
 import Images from './components/Images.tsx';
 import * as client from './lib/client.ts';
-import rest from './lib/rest.ts';
+import rest, { UID_DOCKER_DESKTOP } from './lib/rest.ts';
 import { debug, makeKey } from './lib/util.ts';
 import { WithDockerInfo } from './lib/context.tsx';
 
@@ -46,6 +46,10 @@ function compareUser(a: User, b: User): number {
     if (a.uid === null)
         return -1;
     if (b.uid === null)
+        return 1;
+    if (a.uid === UID_DOCKER_DESKTOP)
+        return -1;
+    if (b.uid === UID_DOCKER_DESKTOP)
         return 1;
     return a.name.localeCompare(b.name);
 }
@@ -87,7 +91,7 @@ interface ApplicationState {
  */
 const Application = () => {
     const [state, setState] = useState<ApplicationState>({
-        users: [{ con: null, uid: 0, name: _("system") }, { con: null, uid: null, name: _("user") }],
+        users: [{ con: null, uid: 0, name: _("system") }, { con: null, uid: null, name: _("user") }, { con: null, uid: UID_DOCKER_DESKTOP, name: _("Docker desktop") }],
         images: null,
         containers: null,
         textFilter: "",
@@ -516,7 +520,7 @@ const Application = () => {
                 setState(prevState => ({
                     ...prevState,
                     users: prevState.users.map(u => {
-                        if (u.uid !== 0 && u.uid !== null && u.con) {
+                        if (u.uid !== 0 && u.uid !== null && u.uid !== UID_DOCKER_DESKTOP && u.con) {
                             debug("onNavigate All: closing unused connection to", u.name);
                             u.con.close();
                             return { uid: u.uid, name: u.name, con: null };
@@ -533,7 +537,7 @@ const Application = () => {
                     setState(prevState => ({
                         ...prevState,
                         users: prevState.users.map(u => {
-                            if (u.uid !== uid && u.uid !== 0 && u.uid !== null && u.con) {
+                            if (u.uid !== uid && u.uid !== 0 && u.uid !== null && u.uid !== UID_DOCKER_DESKTOP && u.con) {
                                 debug("onNavigate", user.name, ": closing unused connection to", u.name);
                                 u.con.close();
                                 return { uid: u.uid, name: u.name, con: null };
@@ -568,9 +572,14 @@ const Application = () => {
         (superuser as EventSource<{ changed: () => void }>).addEventListener("changed", superuserChanged);
 
         cockpit.user().then(user => {
+            // Docker Desktop exposes its daemon on a socket inside the user's home,
+            // so remember the home directory before we can connect to it.
+            sessionStorage.setItem('DOCKER_DESKTOP_HOME', user.home);
+            initRef.current(UID_DOCKER_DESKTOP, _("Docker desktop"));
+
             // there is no "user service" for root, ignore that
             if (user.id === 0) {
-                // clear the dummy init user, otherwise UI waits forever for initialization
+                // clear the dummy init users, otherwise UI waits forever for initialization
                 setState(prevState => ({ ...prevState, users: prevState.users.filter(u => u.uid !== null) }));
                 return;
             }

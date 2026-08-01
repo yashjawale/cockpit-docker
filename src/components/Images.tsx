@@ -30,6 +30,7 @@ import PruneUnusedImagesModal from './PruneUnusedImagesModal.tsx';
 import { RelativeTime } from './RelativeTime.tsx';
 import * as client from '../lib/client.ts';
 import { debug, image_name, truncate_id } from '../lib/util.ts';
+import { UID_DOCKER_DESKTOP } from '../lib/rest.ts';
 import { useDockerInfo } from '../lib/context.tsx';
 
 import type { ListingTableColumnProps, ListingTableRowProps } from "cockpit-components-table";
@@ -241,7 +242,7 @@ const Images = ({ images, imageContainerList, onAddNotification, textFilter, own
                 sortKey: image_name(image),
                 props: { modifier: "breakWord" },
             },
-            { title: (image.uid === 0) ? _("system") : <div><span className="ct-grey-text">{_("user:")} </span>{user.name}</div>, props: { className: "ignore-pixels", modifier: "nowrap" }, sortKey: user.name },
+            { title: (image.uid === 0) ? _("system") : <div><span className="ct-grey-text">{image.uid === UID_DOCKER_DESKTOP ? "" : `${_("user:")} `}</span>{user.name}</div>, props: { className: "ignore-pixels", modifier: "nowrap" }, sortKey: user.name },
             { title: <RelativeTime time={(image.Created ?? 0) * 1000} />, props: { className: "image-created" }, sortKey: image.Created ?? 0 },
             { title: truncate_id(image.Id), props: { className: "image-id" } },
             { title: cockpit.format_bytes(image.Size), props: { className: "ignore-pixels", modifier: "nowrap" }, sortKey: image.Size },

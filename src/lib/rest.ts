@@ -45,6 +45,9 @@ const DOCKER_SYSTEM_ADDRESS = "/var/run/docker.sock";
 /** A standard Unix UID, or null for the logged in session user */
 export type Uid = number | null;
 
+/** Sentinel uid identifying the Docker Desktop daemon, which is not a real user */
+export const UID_DOCKER_DESKTOP = -1;
+
 // FIXME: export SuperuserMode in cockpit.d.ts, and use it here
 /**
  * Resolve the Docker daemon socket address for a given user.
@@ -53,6 +56,15 @@ export type Uid = number | null;
  * @returns The unix socket path and, when applicable, the superuser mode to use
  */
 function getAddress(uid: Uid): { path: string, superuser?: cockpit.ChannelOptions["superuser"] } {
+    if (uid === UID_DOCKER_DESKTOP) {
+        // Docker Desktop exposes its daemon on a socket inside the user's home.
+        const home = sessionStorage.getItem('DOCKER_DESKTOP_HOME');
+        if (home)
+            return { path: `${home}/.docker/desktop/docker.sock` };
+        console.warn("$HOME is not present. Cannot use Docker Desktop.");
+        return { path: "" };
+    }
+
     if (uid === null) {
         // FIXME: make this async and call cockpit.user()
         const xrd = sessionStorage.getItem('XDG_RUNTIME_DIR');

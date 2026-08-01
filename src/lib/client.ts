@@ -321,7 +321,7 @@ export const searchImages = (con: Connection, term: string): Promise<ImageSearch
  * @param con An established Docker API connection
  * @returns A promise resolving to the report of freed disk space
  */
-export const pruneUnusedImages = (con: Connection) => dockerJson(con, "images/prune", "POST", { filters: JSON.stringify({ dangling: false }) });
+export const pruneUnusedImages = (con: Connection) => dockerJson(con, "images/prune", "POST", { filters: JSON.stringify({ dangling: ["false"] }) });
 
 /**
  * Return the commit history of an image.

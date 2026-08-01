@@ -175,8 +175,9 @@ export const ImageSearchModal = ({ downloadImage, users }: {
             return;
         Dialogs.close();
         // The search results may include a tag in the name; strip it so that
-        // the separate tag field is the only source of a tag.
-        downloadImage(stripImageTag(selectedImageName), imageTag, user.con as Connection);
+        // the separate tag field is the only source of a tag. An empty tag
+        // field pulls the "latest" tag explicitly.
+        downloadImage(stripImageTag(selectedImageName), imageTag || "latest", user.con as Connection);
     };
 
     const handleClose = () => {

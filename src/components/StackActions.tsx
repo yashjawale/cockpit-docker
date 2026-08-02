@@ -105,7 +105,7 @@ const StackRemoveModal = ({ containers, onRemove }: {
             <ModalHeader title={_("Remove stack?")} titleIconVariant="warning" />
             <ModalBody>
                 <Stack hasGutter>
-                    <p>{_("Removing this stack will permanently delete the following containers:")}</p>
+                    <p>{_("Removing this stack will permanently delete the following containers. Its compose files are kept, so the stack can be started again.")}</p>
                     <List>
                         {containers.map(container => <ListItem key={container.Id}>{container.Name}</ListItem>)}
                     </List>
@@ -214,8 +214,9 @@ export const StackActions = ({ con, containers, containersStats, onAddNotificati
     };
 
     /**
-     * Remove the whole stack: delete every container and, when the files are in
-     * our own directory, drop that directory too.
+     * Remove the active stack: delete every container. The compose files are
+     * kept, so the stack reappears in the inactive stacks section where it can
+     * be started again or fully removed.
      */
     const removeStack = (): Promise<void> => {
         const errors: string[] = [];
@@ -223,18 +224,13 @@ export const StackActions = ({ con, containers, containersStats, onAddNotificati
             client.delContainer(con, container.Id, true)
                     .catch(ex => errors.push(cockpit.format("$0: $1", container.Name, ex.message)))
         ))
-                .then(async () => {
+                .then(() => {
                     if (errors.length > 0) {
                         onAddNotification({
                             type: 'danger',
                             error: cockpit.format(_("Failed to remove stack $0"), containers[0]?.Name ?? ""),
                             errorDetail: errors.join("\n"),
                         });
-                        return;
-                    }
-                    if (project) {
-                        await cockpit.spawn(["rm", "-rf", `${STACKS_DIR}/${project}`], { superuser: "try", err: "message" })
-                                .catch(() => undefined);
                     }
                 })
                 .finally(() => Dialogs.close());

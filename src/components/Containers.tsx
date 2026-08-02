@@ -802,13 +802,16 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
         // containers at all. A stack is considered active as soon as any of its
         // containers exists, regardless of their run state or the current
         // filter, so that a partially running stack is never shown twice.
+        // Compare project names case-insensitively: docker compose lowercases
+        // the project directory basename, so the label (e.g. "navidrome")
+        // differs from the on-disk directory name (e.g. "Navidrome").
         const activeProjects = new Set<string>();
         for (const id of Object.keys(containers)) {
             const project = containers[id].Config?.Labels?.['com.docker.compose.project'];
             if (project)
-                activeProjects.add(project);
+                activeProjects.add(project.toLowerCase());
         }
-        const inactiveStacks = stacks.filter(project => !activeProjects.has(project));
+        const inactiveStacks = stacks.filter(project => !activeProjects.has(project.toLowerCase()));
 
         // Build the rows of one stack section.
         const sectionRows = (section: string) =>

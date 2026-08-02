@@ -95,12 +95,18 @@ function watch_dirs(dir, on_change) {
 const context = await esbuild.context({
     ...!production ? { sourcemap: "linked" } : {},
     bundle: true,
-    entryPoints: ['./src/index.tsx'],
+    entryPoints: {
+        // The Monaco editor needs its web worker as a separate classic script
+        index: './src/index.tsx',
+        'editor.worker': 'node_modules/monaco-editor/esm/vs/editor/editor.worker.js',
+    },
     // Allow external font files which live in ../../static/fonts
     external: ['*.woff', '*.woff2', '*.jpg', '*.svg', '../../assets*'],
     // Move all legal comments to a .LEGAL.txt file
     legalComments: 'external',
-    loader: { ".js": "jsx", ".py": "text" },
+    // The Monaco editor needs its codicon font; inline it as a data URL so the
+    // bundle stays self-contained, and keep the language tokens/JS untouched
+    loader: { ".js": "jsx", ".py": "text", ".ttf": "dataurl" },
     minify: production,
     nodePaths,
     outdir,

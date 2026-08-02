@@ -3,6 +3,8 @@
         "cockpit": "137"
     },
 
+    "content-security-policy": "style-src 'self' 'unsafe-inline'",
+
     "menu": {
         "index": {
             "label": "Docker containers",

@@ -5,6 +5,7 @@
  */
 
 import type { JsonObject, JsonValue } from "cockpit";
+import cockpit from "cockpit";
 
 import type { Connection, MonitorCallback } from "./rest.ts";
 
@@ -354,3 +355,43 @@ export const imageExists = (con: Connection, id: string) => dockerCall(con, `ima
  * @param id  Id or name of the container
  */
 export const containerExists = (con: Connection, id: string) => dockerCall(con, `containers/${id}/json`, "GET", {});
+
+/* === docker-compose stacks ============================================== */
+
+/** Directory holding the files of the stacks created by this plugin */
+export const STACKS_DIR = "/var/lib/cockpit-docker/stacks";
+
+/**
+ * List the directories under STACKS_DIR, i.e. all stacks created by this
+ * plugin regardless of whether they are running or stopped.
+ *
+ * @returns A promise resolving to the stack project names, sorted
+ */
+export function listStacks(): Promise<string[]> {
+    return cockpit.spawn(["find", STACKS_DIR, "-maxdepth", "1", "-mindepth", "1", "-type", "d", "-printf", "%f\\n"], {
+        superuser: "try",
+        err: "message",
+    })
+            .then(output => output.split("\n").filter(name => name.length > 0))
+            .then(names => names.sort());
+}
+
+/**
+ * Start or stop a docker-compose stack.
+ *
+ * Runs `docker compose up -d` / `docker compose stop` in the given directory,
+ * so the stack is managed through its compose files. Requires the docker CLI
+ * and compose plugin on the host.
+ *
+ * @param dir    Directory containing the stack's docker-compose.yml
+ * @param action Either "up" to start or "stop" to stop the stack
+ * @returns A promise resolving when the compose command has finished
+ */
+export function composeAction(dir: string, action: "up" | "stop"): Promise<string> {
+    const args = action === "up" ? ["up", "-d"] : ["stop"];
+    return cockpit.spawn(["docker", "compose", ...args], {
+        directory: dir,
+        superuser: "try",
+        err: "message",
+    });
+}

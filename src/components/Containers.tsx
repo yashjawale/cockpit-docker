@@ -33,9 +33,11 @@ import ContainerLogs from './ContainerLogs.tsx';
 import ContainerRenameModal from './ContainerRenameModal.tsx';
 import ContainerTerminal from './ContainerTerminal.tsx';
 import ContainerCommitModal from './ContainerCommitModal.tsx';
+import CreateStackModal from './CreateStackModal.tsx';
 import ForceRemoveModal from './ForceRemoveModal.tsx';
 import { ImageRunModal } from './ImageRunModal.tsx';
 import PruneUnusedContainersModal from './PruneUnusedContainersModal.tsx';
+import { StackActions } from './StackActions.tsx';
 import * as client from '../lib/client.ts';
 import { dockerStatsToView, image_name, quote_cmdline, states } from '../lib/util.ts';
 import { useDockerInfo } from '../lib/context.tsx';
@@ -93,6 +95,85 @@ const ContainerOverActions = ({ handlePruneUnusedContainers, unusedContainers }:
 };
 
 /**
+ * Actions of an inactive stack: start it through docker compose, edit its files
+ * or remove its directory. Starting reloads the stack list so the stack moves
+ * to the containers listing once its containers appear.
+ */
+const InactiveStackActions = ({ project, onAddNotification }: {
+    project: string,
+    onAddNotification: (notification: Notification) => void,
+}) => {
+    const [inProgress, setInProgress] = useState(false);
+    const Dialogs = useDialogs();
+    const dir = `${client.STACKS_DIR}/${project}`;
+
+    const startStack = () => {
+        setInProgress(true);
+        client.composeAction(dir, "up")
+                .catch(ex => {
+                    const error = cockpit.format(_("Failed to start stack $0"), project); // not-covered: OS error
+                    onAddNotification({ type: 'danger', error, errorDetail: ex.message });
+                })
+                .finally(() => setInProgress(false));
+    };
+
+    /**
+     * Open the edit dialog, loading the stack's compose and env files.
+     */
+    const editStack = () => {
+        Promise.all([
+            cockpit.file(`${dir}/docker-compose.yml`, { superuser: "try" })
+                    .read()
+                    .catch(() => ""),
+            cockpit.file(`${dir}/.env`, { superuser: "try" })
+                    .read()
+                    .catch(() => ""),
+        ]).then(([compose, env]) => {
+            Dialogs.show(<CreateStackModal projectName={project} initialCompose={compose} initialEnv={env} />);
+        });
+    };
+
+    /**
+     * Remove the stack directory. Inactive stacks have no containers, so only
+     * the files on disk are deleted.
+     */
+    const removeStack = () => {
+        cockpit.spawn(["rm", "-rf", dir], { superuser: "try", err: "message" })
+                .catch(ex => {
+                    const error = cockpit.format(_("Failed to remove stack $0"), project); // not-covered: OS error
+                    onAddNotification({ type: 'danger', error, errorDetail: ex.message });
+                });
+    };
+
+    return (
+        <Flex spaceItems={{ default: 'spaceItemsSm' }} flexWrap={{ default: 'nowrap' }}>
+            <Button
+                variant="secondary"
+                size="sm"
+                className="inactive-stack-start-btn"
+                id={`inactive-stack-start-${project}`}
+                isLoading={inProgress}
+                onClick={startStack}
+            >
+                {_("Start")}
+            </Button>
+            <KebabDropdown
+                toggleButtonId={`inactive-stack-actions-${project}`}
+                position="right"
+                dropdownItems={[
+                    <DropdownItem key="edit" component="button" onClick={editStack}>
+                        {_("Edit")}
+                    </DropdownItem>,
+                    <DropdownItem key="remove" className="pf-m-danger btn-delete" component="button" onClick={removeStack}>
+                        {_("Remove")}
+                    </DropdownItem>,
+                ]}
+            />
+        </Flex>
+    );
+};
+
+/**
  * Wrap a terminal tab renderer, showing a fallback when WebGL2 is unavailable.
  *
  * The WebGL renderer is required by xterm.js; without it the Logs and Console
@@ -128,6 +209,7 @@ interface ContainerRow {
         "data-row-id": string;
         "data-started-at"?: string;
         "data-row-name": string;
+        className?: string;
     };
 }
 
@@ -151,6 +233,10 @@ const ContainerActions = ({ con, container, onAddNotification, localImages }: Co
     const Dialogs = useDialogs();
     const isRunning = container.State?.Status === "running";
     const isPaused = container.State?.Status === "paused";
+    // Containers of a docker-compose stack are managed as a unit; renaming or
+    // deleting a single container would break the stack, so those actions are
+    // only offered for loose containers.
+    const isStackContainer = !!container.Config?.Labels?.['com.docker.compose.project'];
 
     /**
      * Delete the container, offering a force-remove confirmation when it is
@@ -265,6 +351,8 @@ const ContainerActions = ({ con, container, onAddNotification, localImages }: Co
      * Add the rename action to the kebab menu.
      */
     const addRenameAction = () => {
+        if (isStackContainer)
+            return;
         actions.push(
             <DropdownItem key="rename" onClick={() => renameContainer()}>
                 {_("Rename")}
@@ -322,16 +410,18 @@ const ContainerActions = ({ con, container, onAddNotification, localImages }: Co
         </DropdownItem>
     );
 
-    actions.push(<Divider key="separator-2" />);
-    actions.push(
-        <DropdownItem
-            key="delete"
-            className="pf-m-danger btn-delete"
-            onClick={deleteContainer}
-        >
-            {_("Delete")}
-        </DropdownItem>
-    );
+    if (!isStackContainer) {
+        actions.push(<Divider key="separator-2" />);
+        actions.push(
+            <DropdownItem
+                key="delete"
+                className="pf-m-danger btn-delete"
+                onClick={deleteContainer}
+            >
+                {_("Delete")}
+            </DropdownItem>
+        );
+    }
 
     return <KebabDropdown position="right" dropdownItems={actions} />;
 };
@@ -373,12 +463,32 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
 
     const [width, setWidth] = useState(0);
     const [showPruneUnusedContainersModal, setShowPruneUnusedContainersModal] = useState(false);
+    const [stacks, setStacks] = useState<string[]>([]);
+    const [highlightedContainers, setHighlightedContainers] = useState<Record<string, boolean>>({});
     const cardRef = useRef<HTMLDivElement>(null);
+    // The last observed state of each container, to detect status changes and
+    // briefly highlight the changed row like a new row.
+    const containerStatesRef = useRef<Record<string, string>>({});
 
     // Check if WebGL2 is available; only checking if WebGL2RenderingContext is
     // defined is not sufficient, in Firefox tests it is defined as WebGL is
     // enabled but it is not available in headless mode.
     const webglAvailable = !!document.createElement("canvas").getContext("webgl2");
+
+    /**
+     * Refresh the list of stacks on disk. Stacks whose containers are running
+     * are shown in the containers listing; the remaining (inactive) ones are
+     * listed separately with a start button.
+     */
+    const refreshStacks = () => {
+        client.listStacks()
+                .then(setStacks)
+                .catch(ex => console.warn("listStacks failed:", ex.toString()));
+    };
+
+    useEffect(() => {
+        refreshStacks();
+    }, []);
 
     useEffect(() => {
         const onWindowResize = () => setWidth(cardRef.current?.clientWidth ?? 0);
@@ -386,6 +496,33 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
         window.addEventListener('resize', onWindowResize);
         return () => window.removeEventListener('resize', onWindowResize);
     }, []);
+
+    // Highlight a container row in yellow when its state changes while the
+    // user is watching, mirroring how new rows are animated.
+    useEffect(() => {
+        if (!containers)
+            return;
+        const changed: Record<string, boolean> = {};
+        for (const key of Object.keys(containers)) {
+            const status = containers[key].State?.Status ?? "";
+            if (containerStatesRef.current[key] !== undefined && containerStatesRef.current[key] !== status)
+                changed[key] = true;
+            containerStatesRef.current[key] = status;
+        }
+        const changedKeys = Object.keys(changed);
+        if (changedKeys.length === 0)
+            return;
+        setHighlightedContainers(prev => ({ ...prev, ...changed }));
+        const timer = setTimeout(() => {
+            setHighlightedContainers(prev => {
+                const next = { ...prev };
+                for (const key of changedKeys)
+                    delete next[key];
+                return next;
+            });
+        }, 4000);
+        return () => clearTimeout(timer);
+    }, [containers]);
 
     /**
      * Build the row for a single container, computing the CPU and memory
@@ -532,7 +669,8 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
                 key: container.key,
                 "data-row-id": container.key,
                 "data-started-at": container.State?.StartedAt ?? "",
-                "data-row-name": `${container.uid === null ? 'user' : container.uid}-${container.Name}`
+                "data-row-name": `${container.uid === null ? 'user' : container.uid}-${container.Name}`,
+                ...(highlightedContainers[container.key] ? { className: "ct-status-changed" } : {}),
             },
         };
     };
@@ -599,7 +737,6 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
     else if (filter === "running")
         emptyCaption = _("No running containers");
 
-    let rows: ListingTableRowProps[] = [];
     if (isLoaded) {
         const filtered = filterContainers(containers);
 
@@ -644,7 +781,38 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
                 );
         };
 
-        rows = filtered.map(id => renderRow(containers[id], localImages)) as unknown as ListingTableRowProps[];
+        // Group the containers by their docker-compose project, mirroring how
+        // cockpit-podman groups containers into pods. Each stack gets a header
+        // card; containers without a compose project stay in the plain table.
+        const partitionedContainers: Record<string, string[]> = { 'no-stack': [] };
+        for (const id of filtered) {
+            const project = containers[id].Config?.Labels?.['com.docker.compose.project'];
+            const section = project || 'no-stack';
+            if (!partitionedContainers[section])
+                partitionedContainers[section] = [];
+            partitionedContainers[section].push(id);
+        }
+
+        // When there are stacks and no remaining loose containers, drop the
+        // empty plain table (same behavior as the podman pods listing).
+        if (Object.keys(partitionedContainers).length > 1 && !partitionedContainers['no-stack'].length)
+            delete partitionedContainers['no-stack'];
+
+        // Stacks on disk are only listed as inactive when they have no
+        // containers at all. A stack is considered active as soon as any of its
+        // containers exists, regardless of their run state or the current
+        // filter, so that a partially running stack is never shown twice.
+        const activeProjects = new Set<string>();
+        for (const id of Object.keys(containers)) {
+            const project = containers[id].Config?.Labels?.['com.docker.compose.project'];
+            if (project)
+                activeProjects.add(project);
+        }
+        const inactiveStacks = stacks.filter(project => !activeProjects.has(project));
+
+        // Build the rows of one stack section.
+        const sectionRows = (section: string) =>
+            partitionedContainers[section].map(id => renderRow(containers[id], localImages)) as unknown as ListingTableRowProps[];
 
         const sortRows = (sortedRows: ListingTableRowProps[], direction: SortByDirection, idx: number) => {
             // CPU / Memory / States
@@ -684,7 +852,7 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
                     </ToolbarItem>
                     <Divider orientation={{ default: "vertical" }} />
                     <ToolbarItem>
-                        <Button variant="secondary" key="create-new-stack-action" id="containers-containers-create-stack-btn">
+                        <Button variant="secondary" key="create-new-stack-action" id="containers-containers-create-stack-btn" onClick={() => Dialogs.show(<CreateStackModal onStackCreated={refreshStacks} />)}>
                             {_("Create stack")}
                         </Button>
                     </ToolbarItem>
@@ -713,15 +881,84 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
                 </CardHeader>
                 <CardBody>
                     <Flex direction={{ default: 'column' }}>
-                        <ListingTable
-                            variant='compact'
-                            aria-label={_("Containers")}
-                            emptyCaption={emptyCaption}
-                            columns={columnTitles}
-                            sortMethod={sortRows}
-                            rows={rows}
-                            sortBy={{ index: 0, direction: SortByDirection.asc }}
-                        />
+                        {Object.keys(partitionedContainers)
+                                .sort((a, b) => {
+                                    if (a === 'no-stack') return -1;
+                                    else if (b === 'no-stack') return 1;
+                                    return a.localeCompare(b);
+                                })
+                                .map(section => {
+                                    if (section === 'no-stack') {
+                                        return (
+                                            <ListingTable
+                                                key="no-stack"
+                                                variant='compact'
+                                                aria-label={_("Containers")}
+                                                emptyCaption={emptyCaption}
+                                                columns={columnTitles}
+                                                sortMethod={sortRows}
+                                                rows={sectionRows(section)}
+                                                sortBy={{ index: 0, direction: SortByDirection.asc }}
+                                            />
+                                        );
+                                    }
+                                    const stackContainers = partitionedContainers[section].map(id => containers[id]);
+                                    const stackUser = users.find(user => user.uid === stackContainers[0]?.uid);
+                                    const stackCon = stackUser?.con as Connection;
+                                    return (
+                                        <Card key={`table-${section}`} id={`table-${section}`} className="container-stack" isPlain>
+                                            <CardHeader {...(stackCon ? { actions: { actions: <StackActions con={stackCon} containers={stackContainers} containersStats={containersStats} onAddNotification={onAddNotification} />, className: "panel-actions" } } : {})}>
+                                                <CardTitle>
+                                                    <Flex justifyContent={{ default: 'justifyContentFlexStart' }}>
+                                                        <h3 className='stack-name'>{section}</h3>
+                                                        <span>{_("stack")}</span>
+                                                    </Flex>
+                                                </CardTitle>
+                                            </CardHeader>
+                                            <ListingTable
+                                                variant='compact'
+                                                aria-label={cockpit.format(_("Containers of stack $0"), section)}
+                                                emptyCaption={cockpit.format(_("No containers in this stack"), section)}
+                                                columns={columnTitles}
+                                                sortMethod={sortRows}
+                                                rows={sectionRows(section)}
+                                                sortBy={{ index: 0, direction: SortByDirection.asc }}
+                                            />
+                                        </Card>
+                                    );
+                                })}
+                        {inactiveStacks.length > 0 &&
+                            <Card className="container-inactive-stacks" isPlain>
+                                <CardHeader>
+                                    <CardTitle>
+                                        <Content component={ContentVariants.h2}>{_("Inactive stacks")}</Content>
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardBody>
+                                    <ListingTable
+                                        variant='compact'
+                                        aria-label={_("Inactive stacks")}
+                                        columns={[
+                                            { title: _("Name") },
+                                            { title: "", props: { screenReaderText: _("Actions") } },
+                                        ]}
+                                        rows={inactiveStacks.map(project => ({
+                                            expandedContent: null,
+                                            columns: [
+                                                { title: project },
+                                                {
+                                                    title: (
+                                                        <InactiveStackActions project={project} onAddNotification={onAddNotification} />
+                                                    ),
+                                                    props: { className: "pf-v6-c-table__action" },
+                                                },
+                                            ],
+                                            initiallyExpanded: false,
+                                            props: { key: `inactive-${project}`, "data-row-id": `inactive-${project}`, "data-row-name": project },
+                                        }))}
+                                    />
+                                </CardBody>
+                            </Card>}
                     </Flex>
                     {showPruneUnusedContainersModal &&
                     <PruneUnusedContainersModal

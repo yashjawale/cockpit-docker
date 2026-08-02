@@ -112,6 +112,7 @@ export interface DockerContainerConfig {
     Env?: string[];
     Cmd?: string[];
     Tty?: boolean;
+    Labels?: Record<string, string>;
     Healthcheck?: {
         Test?: string[];
         Interval?: number;

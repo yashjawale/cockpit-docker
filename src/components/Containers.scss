@@ -62,6 +62,104 @@
     margin-inline-end: 0;
 }
 
+/* Stacks: a compose project listing inside the containers card */
+.container-stack {
+    .pf-v6-c-card__title {
+        padding: 0;
+        font-weight: var(--pf-t--global--font--weight--body);
+        font-size: var(--pf-t--global--font--size--md);
+
+        .stack-name {
+            font-weight: var(--pf-t--global--font--weight--300);
+            font-size: var(--pf-t--global--font--size--md);
+            padding-inline-end: 1rem;
+            margin-block-start: 0;
+            margin-block-end: 0;
+        }
+    }
+
+    > .pf-v6-c-card__header {
+        &:not(:last-child) {
+            padding-block-end: var(--pf-t--global--spacer--sm);
+        }
+
+        > .pf-v6-c-card__title > .pf-l-flex {
+            row-gap: var(--pf-t--global--spacer--sm);
+        }
+    }
+
+    .pod-details-button {
+        padding-inline: 0;
+        margin-inline-end: var(--pf-t--global--spacer--md);
+    }
+
+    .pod-details-button-color {
+        color: var(--pf-v6-c-button--m-secondary--Color);
+    }
+
+    .pod-stat {
+        @media (max-width: var(--pf-t--global--breakpoint--md)) {
+            // Place each stat on its own row
+            flex-basis: 100%;
+            display: grid;
+            // Give labels to the same space
+            grid-template-columns: minmax(auto, 4rem) 1fr;
+
+            > svg {
+                // Hide icons in mobile to be consistent with container lists
+                display: none;
+            }
+        }
+
+        // Center the icons for proper vertical alignment
+        > svg {
+            align-self: center;
+        }
+    }
+}
+
+/* Match the podman pod header: the "stack" label and title at the same size */
+#app .pf-v6-c-card.container-stack div.pf-v6-c-card__title-text {
+    font-weight: normal;
+    font-size: var(--pf-t--global--font--size--md);
+}
+
+/* Stack status badge, colored like the podman pod states */
+.ct-badge-stack-running {
+    background-color: var(--pf-t--global--color--status--info--default);
+    color: var(--pf-t--global--text--color--status--on-info--default);
+}
+
+/* Highlight a container row briefly when its state changes */
+.ct-status-changed {
+    animation: ctStatusChanged 4s ease-in;
+}
+
+@keyframes ctStatusChanged {
+    0% {
+        background-color: var(--ct-animation-new-background);
+    }
+
+    50% {
+        background-color: var(--ct-animation-new-background);
+    }
+}
+
+.ct-badge-stack-paused {
+    background-color: var(--pf-t--global--color--status--warning--default);
+    color: var(--pf-t--global--text--color--status--on-warning--default);
+}
+
+.ct-badge-stack-degraded {
+    background-color: var(--pf-t--global--color--status--warning--default);
+    color: var(--pf-t--global--text--color--status--on-warning--default);
+}
+
+.ct-badge-stack-stopped {
+    background-color: var(--pf-t--global--color--nonstatus--gray--default);
+    color: var(--pf-t--global--text--color--nonstatus--on-gray--default);
+}
+
 // Override table padding on mobile
 @media (max-width: var(--pf-t--global--breakpoint--md)) {
     .health-logs.pf-m-grid-md.pf-v6-c-table tr:where(.pf-v6-c-table__tr):not(.pf-v6-c-table__expandable-row) {

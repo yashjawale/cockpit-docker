@@ -1,0 +1,70 @@
+/*
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ *
+ * Styling for the Containers listing card.
+ */
+
+.container-block {
+    display: flex;
+    flex-direction: column;
+    word-break: break-all;
+}
+
+.container-block small {
+    color: var(--pf-t--global--text--color--subtle);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 30em;
+}
+
+.container-name {
+    font-size: var(--pf-t--global--font--size--lg);
+    font-weight: 400;
+}
+
+// HACK: PF should offer that: https://github.com/patternfly/patternfly/issues/6572
+.ct-numeric-column {
+    text-align: end;
+
+    .pf-v6-c-table__button {
+        // right-justify the button inside of the th
+        flex-direction: row-reverse;
+        margin-inline-start: 0;
+    }
+}
+
+.ct-badge-container-healthy {
+    background-color: var(--pf-t--global--border--color--status--success--default);
+    color: var(--pf-t--global--text--color--status--on-success--default);
+}
+
+.ct-badge-container-unhealthy {
+    background-color: var(--pf-t--global--border--color--status--danger--default);
+    color: var(--pf-t--global--text--color--status--on-danger--default);
+}
+
+/* HACK - force DescriptionList to wrap but not fill the width */
+#container-details-healthcheck {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+/* Upstream issue https://github.com/patternfly/patternfly/pull/7396
+ * Will be fixed in PF v6.2.0
+ */
+.containers-containers .pf-v6-c-toolbar__content-section {
+    gap: var(--pf-t--global--spacer--sm);
+}
+
+/* Drop the excessive margin for a Dropdown button */
+.containers-containers .pf-v6-c-toolbar__content-section > :nth-last-child(2) {
+    margin-inline-end: 0;
+}
+
+// Override table padding on mobile
+@media (max-width: var(--pf-t--global--breakpoint--md)) {
+    .health-logs.pf-m-grid-md.pf-v6-c-table tr:where(.pf-v6-c-table__tr):not(.pf-v6-c-table__expandable-row) {
+        padding: 0;
+    }
+}

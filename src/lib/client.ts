@@ -25,7 +25,13 @@ export const VERSION = "/v1.41/";
  */
 const dockerCall = (con: Connection, name: string, method: string, args: JsonObject, body?: string):
                    Promise<string> =>
-    con.call({ method, path: VERSION + name, body: body || "", params: args, });
+    con.call({
+        method,
+        path: VERSION + name,
+        body: body || "",
+        params: args,
+        headers: { "Content-Type": "application/json" },
+    });
 
 /**
  * Issue a raw HTTP request against the Docker Engine API and parse the response as JSON.

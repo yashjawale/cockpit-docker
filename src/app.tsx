@@ -19,6 +19,7 @@ import type { EventSource, JsonObject } from 'cockpit';
 import { superuser } from "superuser";
 
 import ContainerHeader from './components/ContainerHeader.tsx';
+import Containers from './components/Containers.tsx';
 import Images from './components/Images.tsx';
 import * as client from './lib/client.ts';
 import rest, { UID_DOCKER_DESKTOP } from './lib/rest.ts';
@@ -26,7 +27,7 @@ import { debug, makeKey } from './lib/util.ts';
 import { WithDockerInfo } from './lib/context.tsx';
 
 import type { Connection } from './lib/rest.ts';
-import type { DockerContainer, DockerError, DockerEvent, DockerImage, ImageUse, Notification, User } from './lib/types.ts';
+import type { ContainerStats, DockerContainer, DockerError, DockerEvent, DockerImage, ImageUse, Notification, User } from './lib/types.ts';
 
 const _ = cockpit.gettext;
 
@@ -68,6 +69,10 @@ interface ApplicationState {
     images: Record<string, DockerImage> | null;
     /** All containers across owners, keyed by their globally unique key; null while loading */
     containers: Record<string, DockerContainer> | null;
+    /** The "Show" filter of the containers card, mirrored to the URL ?container= option */
+    containersFilter: "all" | "running";
+    /** Streamed usage snapshots of the containers, keyed by their state key */
+    containersStats: Record<string, ContainerStats>;
     /** Active text search filter, mirrored to the URL ?name= option */
     textFilter: string;
     /** Active owner filter, mirrored to the URL ?owner= option */
@@ -94,6 +99,8 @@ const Application = () => {
         users: [{ con: null, uid: 0, name: _("system") }, { con: null, uid: null, name: _("user") }, { con: null, uid: UID_DOCKER_DESKTOP, name: _("Docker desktop") }],
         images: null,
         containers: null,
+        containersFilter: "all",
+        containersStats: {},
         textFilter: "",
         ownerFilter: "all",
         notifications: [],
@@ -187,6 +194,25 @@ const Application = () => {
     };
 
     /**
+     * Update the containers card "Show" filter and mirror it to the URL ?container= option.
+     *
+     * @param value The new filter: "all" or "running"
+     */
+    const onContainerFilterChanged = (value: "all" | "running") => {
+        setState(prevState => ({
+            ...prevState,
+            containersFilter: value
+        }));
+
+        const options = { ...(cockpit.location.options as Record<string, string>) };
+        if (value === "all")
+            delete options.container;
+        else
+            options.container = value;
+        updateUrl(options);
+    };
+
+    /**
      * Load the containers of one daemon and inspect each one in detail.
      *
      * The containers of other users are kept and only this user's containers
@@ -217,8 +243,36 @@ const Application = () => {
                         const users = prevState.users.map(u => u.uid === con.uid ? { ...u, containersLoaded: true } : u);
                         return { ...prevState, containers: copyContainers, users };
                     });
+                    updateContainerStats(con);
                 })
                 .catch(e => console.warn("initContainers uid", con.uid, "getContainers failed:", e.toString()));
+    };
+
+    /**
+     * Subscribe to the usage statistics stream of one daemon.
+     *
+     * Docker sends one usage snapshot per container every second; each snapshot
+     * is stored under the container's state key so the Containers card can
+     * compute the CPU and memory columns from it.
+     *
+     * @param con Connection of the daemon to stream stats from
+     */
+    const updateContainerStats = (con: Connection) => {
+        client.streamContainerStats(con, (reply: JsonObject) => {
+            const stat = reply as ContainerStats;
+            const stat_id = stat.id;
+            if (stat_id) {
+                setState(prevState => ({
+                    ...prevState,
+                    containersStats: {
+                        ...prevState.containersStats,
+                        [makeKey(con.uid, stat_id)]: stat,
+                    },
+                }));
+            }
+        }).catch(ex => {
+            console.warn("Failed to update container stats:", JSON.stringify(ex));
+        });
     };
 
     /**
@@ -442,6 +496,18 @@ const Application = () => {
             });
         }
 
+        // drop the usage snapshots of the closed connection; the key prefix
+        // identifies the owner (see makeKey)
+        const ownerPrefix = `${con.uid ?? "user"}-`;
+        setState(prevState => {
+            const containersStats: Record<string, ContainerStats> = {};
+            Object.entries(prevState.containersStats || {}).forEach(([id, v]) => {
+                if (!id.startsWith(ownerPrefix))
+                    containersStats[id] = v;
+            });
+            return { ...prevState, containersStats };
+        });
+
         // keep dummy (null) connections from other users, only remove valid ones
         setState(prevState => ({ ...prevState, users: prevState.users.filter(u => u.con === null || u.uid !== con.uid) }));
 
@@ -514,6 +580,9 @@ const Application = () => {
         if (path.length === 0) {
             if (options.name) {
                 onFilterChanged(options.name as string);
+            }
+            if (options.container) {
+                onContainerFilterChanged(options.container as "all" | "running");
             }
             if (["all", undefined].includes(options.owner as string | undefined)) {
                 // disconnect all non-standard users
@@ -674,6 +743,21 @@ const Application = () => {
         />
     );
 
+    const containerList = (
+        <Containers
+            key="containerList"
+            containers={loadingContainers ? null : state.containers}
+            containersStats={state.containersStats}
+            images={loadingImages ? null : state.images}
+            filter={state.containersFilter}
+            handleFilterChange={onContainerFilterChanged}
+            textFilter={state.textFilter}
+            ownerFilter={state.ownerFilter}
+            users={state.users}
+            onAddNotification={handleAddNotification}
+        />
+    );
+
     const notificationList = (
         <AlertGroup isToast>
             {state.notifications.map((notification, index) => {
@@ -714,6 +798,7 @@ const Application = () => {
                     <PageSection hasBodyWrapper={false} className='ct-pagesection-mobile'>
                         <Stack hasGutter>
                             {imageList}
+                            {containerList}
                         </Stack>
                     </PageSection>
                 </Page>

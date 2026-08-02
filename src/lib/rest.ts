@@ -39,6 +39,9 @@ function format_error(error: object, content: unknown): object {
 // calls are async, so keep track of a call counter to associate a result with a call
 let call_id = 0;
 
+const NL = '\n'.charCodeAt(0); // always 10, but avoid magic constant
+const CR = '\r'.charCodeAt(0); // always 13, but avoid magic constant
+
 /** Unix socket path of the system-wide Docker daemon, only reachable by root */
 const DOCKER_SYSTEM_ADDRESS = "/var/run/docker.sock";
 
@@ -84,24 +87,27 @@ function getAddress(uid: Uid): { path: string, superuser?: cockpit.ChannelOption
 }
 
 /**
- * Split an HTTP response message at the \r\n\r\n separator, separating headers from the body.
+ * Find the offset of the \r\n\r\n separator of an HTTP response, or -1.
  *
- * @param text The raw HTTP response message
- * @returns A tuple of the header text and the body text, or null when no body follows
+ * The daemon may deliver the response header split across several channel
+ * messages, so the caller buffers the data until the separator is complete.
+ *
+ * @param array The raw binary bytes of an HTTP response received so far
+ * @returns The index of the \r\n\r\n separator, or -1 when it is not complete yet
  */
-function splitAtNLNL(text: string): [string, string | null] {
-    const idx = text.indexOf("\r\n\r\n");
-    if (idx < 0) {
-        console.error("did not find NLNL in message", text); // not-covered: if this happens, it's a docker bug
-        return [text, null]; // not-covered: ditto
+function findNLNL(array: Uint8Array): number {
+    for (let i = 0; i <= array.length - 4; i++) {
+        if (array[i] === CR && array[i + 1] === NL && array[i + 2] === CR && array[i + 3] === NL) {
+            return i;
+        }
     }
-    return [text.slice(0, idx), text.slice(idx + 4)];
+    return -1;
 }
 
 /** Callback invoked with each parsed JSON message of a streaming endpoint */
 export type MonitorCallbackJson = (data: JsonObject) => void;
-/** Callback invoked with each raw message of a streaming endpoint */
-export type MonitorCallbackRaw = (data: string) => void;
+/** Callback invoked with each raw binary message of a streaming endpoint */
+export type MonitorCallbackRaw = (data: Uint8Array) => void;
 /** Union of the possible monitor callbacks, selected via the return_raw flag */
 export type MonitorCallback = MonitorCallbackJson | MonitorCallbackRaw;
 
@@ -125,7 +131,9 @@ export type Connection = {
 /**
  * Establish a connection to the Docker daemon for the given user.
  *
- * No channel is actually created until the first request is made.
+ * No channel is actually created until the first request is made. A binary
+ * channel is used so that raw streams (terminal and logs) can transport
+ * arbitrary bytes, see https://github.com/cockpit-project/cockpit/issues/19235.
  *
  * @param uid The user id to connect as, or null for the session user
  * @returns A connection object bound to the resolved docker socket
@@ -133,8 +141,10 @@ export type Connection = {
 function connect(uid: Uid): Connection {
     const addr = getAddress(uid);
     /* This doesn't create a channel until a request */
-    const http = cockpit.http(addr.path, { superuser: addr.superuser });
-    const raw_channels: cockpit.Channel<string>[] = [];
+    const http = cockpit.http(addr.path, { superuser: addr.superuser, binary: true });
+    const raw_channels: cockpit.Channel<Uint8Array>[] = [];
+    const encoder = new TextEncoder();
+    const decoder = new TextDecoder();
     const user_str = (uid === null) ? "user" : (uid === 0) ? "root" : `uid ${uid}`;
 
     /**
@@ -149,14 +159,18 @@ function connect(uid: Uid): Connection {
         return new Promise((resolve, reject) => {
             options = options || {};
             http.request(options)
-                    .then(result => {
-                        debug(user_str, `call ${id} result:`, result);
-                        resolve(result);
+                    .then((result: Uint8Array) => {
+                        const text = decoder.decode(result);
+                        debug(user_str, `call ${id} result:`, text);
+                        resolve(text);
                     })
                     // @ts-expect-error: magic cockpit defer error extra "content" parameter
                     .catch((error: object, content: unknown) => {
-                        debug(user_str, `call ${id} error:`, JSON.stringify(error), "content", content);
-                        reject(format_error(error, content));
+                        const content_text = (content instanceof Uint8Array)
+                            ? decoder.decode(content as Uint8Array)
+                            : content;
+                        debug(user_str, `call ${id} error:`, JSON.stringify(error), "content", content_text);
+                        reject(format_error(error, content_text));
                     });
         });
     }
@@ -165,56 +179,68 @@ function connect(uid: Uid): Connection {
      * Subscribe to a streaming endpoint of the Docker daemon.
      *
      * @param path       Request path, including any query parameters
-     * @param callback   Invoked for each newline-delimited JSON line, or raw message when return_raw is set
-     * @param return_raw When true the callback receives raw data instead of parsed JSON
+     * @param callback   Invoked for each newline-delimited JSON line, or raw data when return_raw is set
+     * @param return_raw When true the callback receives raw binary data instead of parsed JSON
      * @returns A promise resolving once the stream is closed
      */
     function monitor(path: string, callback: MonitorCallback, return_raw: boolean = false): Promise<void> {
         return new Promise((resolve, reject) => {
-            const ch = cockpit.channel({ unix: addr.path, superuser: addr.superuser, payload: "stream" });
+            const ch = cockpit.channel({ unix: addr.path, superuser: addr.superuser, payload: "stream", binary: true });
             raw_channels.push(ch);
-            let buffer = "";
+            let buffer = new Uint8Array();
+            let http_buffer = new Uint8Array();
 
             ch.addEventListener("close", () => {
                 debug(user_str, "monitor", path, "closed");
                 resolve();
             });
 
-            const onHTTPMessage = (event: unknown, message: string) => {
-                const [headers, body] = splitAtNLNL(message);
+            const onHTTPMessage = (event: unknown, message: Uint8Array) => {
+                // The daemon may split the response header across several messages,
+                // so accumulate until the header/body separator is complete.
+                http_buffer = new Uint8Array([...http_buffer, ...message]);
+                const idx = findNLNL(http_buffer);
+                if (idx < 0)
+                    return;
+                ch.removeEventListener("message", onHTTPMessage);
+
+                const headers = decoder.decode(http_buffer.subarray(0, idx));
+                const body = http_buffer.subarray(idx + 4);
+                http_buffer = new Uint8Array();
                 debug(user_str, "monitor", path, "HTTP response:", headers);
                 if (headers.match(/^HTTP\/1.*\s+200\s/)) {
                     // any further message is actual streaming data
-                    ch.removeEventListener("message", onHTTPMessage);
                     ch.addEventListener("message", onDataMessage);
 
                     // process the initial response data
-                    if (body)
+                    if (body.length > 0)
                         onDataMessage(event, body);
                 } else {
-                    // empty body Should not Happen™, would be a docker bug
-                    const body_text = body || "(empty)";
+                    // empty body should not happen, would be a docker bug
+                    const body_text = body.length > 0 ? decoder.decode(body) : "(empty)";
                     reject(format_error({ reason: headers.split('\r\n')[0] }, body_text));
                 }
             };
 
-            const onDataMessage = (_event: unknown, message: string) => {
+            const onDataMessage = (_event: unknown, message: Uint8Array) => {
                 if (isReturnRaw(return_raw, callback)) {
+                    debug(user_str, "monitor", path, "raw data:", message);
                     callback(message);
                 } else {
-                    buffer += message;
+                    buffer = new Uint8Array([...buffer, ...message]);
 
-                    // split the buffer into lines on NL
+                    // split the buffer into lines on NL (this is safe with UTF-8)
                     for (;;) {
-                        const idx = buffer.indexOf('\n');
+                        const idx = buffer.indexOf(NL);
                         if (idx < 0)
                             break;
 
                         const line = buffer.slice(0, idx);
                         buffer = buffer.slice(idx + 1);
 
-                        debug(user_str, "monitor", path, "data:", line);
-                        callback(JSON.parse(line));
+                        const line_str = decoder.decode(line);
+                        debug(user_str, "monitor", path, "data:", line_str);
+                        callback(JSON.parse(line_str));
                     }
                 }
             };
@@ -222,7 +248,7 @@ function connect(uid: Uid): Connection {
             // the initial message is the HTTP status response
             ch.addEventListener("message", onHTTPMessage);
 
-            ch.send(`GET ${path} HTTP/1.0\r\nContent-Length: 0\r\n\r\n`);
+            ch.send(encoder.encode(`GET ${path} HTTP/1.0\r\nContent-Length: 0\r\n\r\n`));
         });
     }
 

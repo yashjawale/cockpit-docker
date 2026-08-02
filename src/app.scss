@@ -3,11 +3,11 @@
 @use "page.scss";
 @use "global-variables" as *;
 
-#app .pf-v6-c-card.containers-images {
+#app .pf-v6-c-card.containers-images, #app .pf-v6-c-card.containers-containers {
     @extend .ct-card;
 }
 
-#containers-images {
+#containers-images, #containers-containers {
     // Decrease padding for the image/container toggle button list
     .pf-v6-c-table.pf-m-compact .pf-v6-c-table__toggle {
         padding-inline-start: 0;

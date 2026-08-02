@@ -274,6 +274,7 @@ export const ImageRunModal = ({ users, image, localImages, dockerInfo, dialogs }
 
         if (stateRef.current.hasTTY) {
             createConfig.Tty = true;
+            createConfig.OpenStdin = true;
         }
 
         if (stateRef.current.memoryConfigure && stateRef.current.memory) {

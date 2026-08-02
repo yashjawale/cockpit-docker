@@ -6,6 +6,12 @@
 
 import { debounce } from 'throttle-debounce';
 
+import cockpit from 'cockpit';
+
+import type { ContainerStats } from './types.ts';
+
+const _ = cockpit.gettext;
+
 /**
  * Log a message to the console when the "docker" debugging flag is enabled.
  *
@@ -14,6 +20,70 @@ import { debounce } from 'throttle-debounce';
 export function debug(...args: unknown[]): void {
     if (window.debugging === "all" || window.debugging?.includes("docker"))
         console.debug("docker", ...args);
+}
+
+/**
+ * Container states in the order used for sorting the containers table,
+ * derived from the Docker container state machine.
+ */
+export const states = [_("Created"), _("Restarting"), _("Running"), _("Paused"), _("Exited"), _("Removing"), _("Dead")];
+
+/**
+ * Whether a string is usable as a new container name.
+ *
+ * Docker only allows lowercase alphanumeric characters, underscores and
+ * dashes, without leading separators.
+ *
+ * @param name The proposed container name
+ */
+export function is_valid_container_name(name: string): boolean {
+    return /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(name);
+}
+
+/**
+ * The CPU and memory usage shown for a container, computed from a raw docker
+ * stats snapshot, or undefined when the snapshot does not carry the data.
+ */
+export interface ContainerStatsView {
+    /** CPU usage as a percentage of all host CPUs, e.g. 12.34 */
+    CPU?: number;
+    /** Memory usage in bytes */
+    MemUsage?: number;
+    /** Memory limit in bytes, or undefined when the cgroup has no limit */
+    MemLimit?: number;
+}
+
+/**
+ * Compute CPU and memory usage from a docker stats snapshot.
+ *
+ * The CPU percentage is the ratio of the CPU time consumed since the previous
+ * snapshot to the elapsed system CPU time, scaled to the number of online
+ * CPUs, as the docker CLI does. The memory usage is the cgroup usage minus the
+ * reclaimable inactive file cache, again matching the docker CLI.
+ *
+ * @param stats A raw snapshot from the containers/stats stream
+ * @returns The CPU and memory values, or undefined fields when not computable
+ */
+export function dockerStatsToView(stats: ContainerStats): ContainerStatsView {
+    const view: ContainerStatsView = {};
+
+    const cpuDelta = (stats.cpu_stats?.cpu_usage?.total_usage ?? 0) - (stats.precpu_stats?.cpu_usage?.total_usage ?? 0);
+    const systemDelta = (stats.cpu_stats?.system_cpu_usage ?? 0) - (stats.precpu_stats?.system_cpu_usage ?? 0);
+    const onlineCpus = stats.cpu_stats?.online_cpus;
+    if (systemDelta > 0 && cpuDelta > 0 && onlineCpus) {
+        view.CPU = (cpuDelta / systemDelta) * onlineCpus * 100;
+    }
+
+    const memUsage = stats.memory_stats?.usage;
+    const inactiveFile = stats.memory_stats?.stats?.inactive_file;
+    if (Number.isInteger(memUsage)) {
+        view.MemUsage = memUsage! - (Number.isInteger(inactiveFile) ? inactiveFile! : 0);
+        const memLimit = stats.memory_stats?.limit;
+        if (memLimit !== undefined && Number.isInteger(memLimit))
+            view.MemLimit = memLimit;
+    }
+
+    return view;
 }
 
 /**

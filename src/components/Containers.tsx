@@ -937,30 +937,28 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
                                         <Content component={ContentVariants.h2}>{_("Inactive stacks")}</Content>
                                     </CardTitle>
                                 </CardHeader>
-                                <CardBody>
-                                    <ListingTable
-                                        variant='compact'
-                                        aria-label={_("Inactive stacks")}
-                                        columns={[
-                                            { title: _("Name") },
-                                            { title: "", props: { screenReaderText: _("Actions") } },
-                                        ]}
-                                        rows={inactiveStacks.map(project => ({
-                                            expandedContent: null,
-                                            columns: [
-                                                { title: project },
-                                                {
-                                                    title: (
-                                                        <InactiveStackActions project={project} onAddNotification={onAddNotification} />
-                                                    ),
-                                                    props: { className: "pf-v6-c-table__action" },
-                                                },
-                                            ],
-                                            initiallyExpanded: false,
-                                            props: { key: `inactive-${project}`, "data-row-id": `inactive-${project}`, "data-row-name": project },
-                                        }))}
-                                    />
-                                </CardBody>
+                                <ListingTable
+                                    variant='compact'
+                                    aria-label={_("Inactive stacks")}
+                                    columns={[
+                                        { title: _("Name") },
+                                        { title: "", props: { screenReaderText: _("Actions") } },
+                                    ]}
+                                    rows={inactiveStacks.map(project => ({
+                                        expandedContent: null,
+                                        columns: [
+                                            { title: project },
+                                            {
+                                                title: (
+                                                    <InactiveStackActions project={project} onAddNotification={onAddNotification} />
+                                                ),
+                                                props: { className: "pf-v6-c-table__action" },
+                                            },
+                                        ],
+                                        initiallyExpanded: false,
+                                        props: { key: `inactive-${project}`, "data-row-id": `inactive-${project}`, "data-row-name": project },
+                                    }))}
+                                />
                             </Card>}
                     </Flex>
                     {showPruneUnusedContainersModal &&

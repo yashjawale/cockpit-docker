@@ -241,9 +241,14 @@ export function getImages(con: Connection, id?: string): Promise<Record<string, 
                     promises.push(dockerJson(con, `images/${image.Id}/json`, "GET", {}));
                 }
 
-                return Promise.all(promises)
-                        .then(replies => {
-                            for (const info of replies as JsonObject[]) {
+                // An image may be deleted between the list and the inspect
+                // calls; skip the failed ones instead of losing the whole list.
+                return Promise.allSettled(promises)
+                        .then(results => {
+                            for (const result of results) {
+                                if (result.status !== "fulfilled")
+                                    continue;
+                                const info = result.value as JsonObject;
                                 const imageId = info.Id as string;
                                 const existingImage = images[imageId] as JsonObject || {};
                                 images[imageId] = { uid: con.uid, ...existingImage, ...parseImageInfo(info) };

@@ -229,10 +229,16 @@ const Application = () => {
      */
     const initContainers = (con: Connection) => {
         return client.getContainers(con)
-                .then(containerList => Promise.all(
+                .then(containerList => Promise.allSettled(
                     containerList.map(container => client.inspectContainer(con, container.Id))
                 ))
-                .then(containerDetails => {
+                .then(results => {
+                    // A container may be deleted between the list and the inspect
+                    // calls, so skip the ones that failed instead of losing the
+                    // containers of the whole user to a single error.
+                    const containerDetails = results
+                            .filter((result): result is PromiseFulfilledResult<DockerContainer> => result.status === "fulfilled")
+                            .map(result => result.value);
                     setState(prevState => {
                         // keep/copy the containers of other users
                         const copyContainers: Record<string, DockerContainer> = {};

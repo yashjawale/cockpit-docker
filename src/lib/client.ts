@@ -191,7 +191,7 @@ export function resizeContainersTTY(con: Connection, id: string, exec: boolean, 
     };
 
     let point = "containers/";
-    if (!exec)
+    if (exec)
         point = "exec/";
 
     return dockerCall(con, `${point}${id}/resize`, "POST", args);

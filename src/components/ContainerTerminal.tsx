@@ -127,7 +127,7 @@ const ContainerTerminal = ({ con, containerId, containerStatus, width, uid, tty 
         term.resize(cols, 24);
         if (!connectedRef.current)
             return;
-        client.resizeContainersTTY(con, sessionIdRef.current, tty ?? false, cols, 24)
+        client.resizeContainersTTY(con, sessionIdRef.current, !tty, cols, 24)
                 .catch(e => setErrorMessage(e.message));
     };
 

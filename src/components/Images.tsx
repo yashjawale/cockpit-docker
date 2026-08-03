@@ -304,13 +304,17 @@ const Images = ({ images, imageContainerList, onAddNotification, textFilter, own
     let filtered: string[] = [];
     if (images !== null) {
         filtered = Object.keys(images).filter(id => {
+            const image = images[id];
             if (ownerFilter !== "all") {
-                if (ownerFilter === "user")
-                    return images[id].uid === null;
-                return images[id].uid === ownerFilter;
+                if (ownerFilter === "user") {
+                    if (image.uid !== null)
+                        return false;
+                } else if (image.uid !== ownerFilter) {
+                    return false;
+                }
             }
 
-            const tags = images[id].RepoTags || [];
+            const tags = image.RepoTags || [];
             if (!intermediateOpened && tags.length < 1)
                 return false;
             if (textFilter.length > 0)

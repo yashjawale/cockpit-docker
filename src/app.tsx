@@ -31,6 +31,11 @@ import type { ContainerStats, DockerContainer, DockerError, DockerEvent, DockerI
 
 const _ = cockpit.gettext;
 
+/** Monotonically increasing index for toast notifications, so that dismissing
+ * one toast never collides with another one's index (which would happen when
+ * the index is derived from the current list length). */
+let notificationIndex = 0;
+
 /**
  * Sort users for the dialogs and dropdowns: the system daemon first, then the
  * session user, then all remaining users by ascending name.
@@ -127,19 +132,21 @@ const Application = () => {
     /**
      * Append a toast notification, assigning it the next index.
      *
+     * The index is taken from a monotonically increasing counter instead of the
+     * current list length, so that dismissing one notification can never
+     * collide with another toast's index and remove it as well.
+     *
      * @param notification The notification to show
      */
     const handleAddNotification = (notification: Notification) => {
-        setState(prevState => {
-            notification.index = prevState.notifications.length;
-            return {
-                ...prevState,
-                notifications: [
-                    ...prevState.notifications,
-                    notification
-                ]
-            };
-        });
+        notification.index = notificationIndex++;
+        setState(prevState => ({
+            ...prevState,
+            notifications: [
+                ...prevState.notifications,
+                notification
+            ]
+        }));
     };
 
     /**

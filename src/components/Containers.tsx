@@ -46,7 +46,7 @@ import type { ListingTableColumnProps, ListingTableRowProps } from "cockpit-comp
 import type { Connection } from '../lib/rest.ts';
 import type { ContainerStats, DockerContainer, DockerImage, Notification, UnusedContainer, User } from '../lib/types.ts';
 
-import './Containers.scss';
+import '../styles/Containers.scss';
 
 const _ = cockpit.gettext;
 

@@ -37,7 +37,7 @@ import type { ListingTableColumnProps, ListingTableRowProps } from "cockpit-comp
 import type { Connection } from '../lib/rest.ts';
 import type { DockerImage, ImageUse, Notification, User } from '../lib/types.ts';
 
-import './Images.scss';
+import '../styles/Images.scss';
 import '@patternfly/react-styles/css/utilities/Sizing/sizing.css';
 
 const _ = cockpit.gettext;

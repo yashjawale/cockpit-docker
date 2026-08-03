@@ -17,7 +17,7 @@ import { EmptyStatePanel } from "cockpit-components-empty-state.tsx";
 import * as client from '../lib/client.ts';
 import rest from '../lib/rest.ts';
 
-import "./ContainerTerminal.css";
+import "../styles/ContainerTerminal.scss";
 
 const _ = cockpit.gettext;
 

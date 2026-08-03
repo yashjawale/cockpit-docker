@@ -27,7 +27,7 @@ import * as client from '../lib/client.ts';
 import type { Connection } from '../lib/rest.ts';
 import type { ImageSearchResult, User } from '../lib/types.ts';
 
-import './ImageSearchModal.scss';
+import '../styles/ImageSearchModal.scss';
 
 const _ = cockpit.gettext;
 

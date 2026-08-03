@@ -49,7 +49,7 @@ import type { JsonObject } from 'cockpit';
 import type { Dialogs } from 'dialogs.jsx';
 import type { TypeaheadSelectOption } from 'cockpit-components-typeahead-select';
 
-import './ImageRunModal.scss';
+import '../styles/ImageRunModal.scss';
 
 const _ = cockpit.gettext;
 

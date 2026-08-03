@@ -8,7 +8,7 @@ import React, { useEffect, useRef, useState } from 'react';
 
 import { Alert, AlertActionCloseButton, AlertGroup } from "@patternfly/react-core/dist/esm/components/Alert";
 import { Button } from "@patternfly/react-core/dist/esm/components/Button";
-import { EmptyState, EmptyStateFooter, EmptyStateActions, EmptyStateVariant } from "@patternfly/react-core/dist/esm/components/EmptyState";
+import { EmptyState, EmptyStateBody, EmptyStateFooter, EmptyStateActions, EmptyStateVariant } from "@patternfly/react-core/dist/esm/components/EmptyState";
 import { Page, PageSection } from "@patternfly/react-core/dist/esm/components/Page";
 import { Stack } from "@patternfly/react-core/dist/esm/layouts/Stack";
 import { ExclamationCircleIcon } from '@patternfly/react-icons';
@@ -88,6 +88,9 @@ interface ApplicationState {
     version: string;
     /** Whether SELinux is available on the host */
     selinuxAvailable: boolean;
+    /** Whether the docker CLI is installed, to tell "not installed" apart from
+     * "service failed" in the failure empty state; null while unknown */
+    dockerInstalled: boolean | null;
 }
 
 /**
@@ -111,6 +114,7 @@ const Application = () => {
         notifications: [],
         version: '',
         selinuxAvailable: false,
+        dockerInstalled: null,
     });
     // always-current snapshot of the state, so that the event handlers below
     // (which are registered once) never see a stale closure
@@ -678,6 +682,12 @@ const Application = () => {
                 .then(() => setState(prevState => ({ ...prevState, selinuxAvailable: true })))
                 .catch(() => setState(prevState => ({ ...prevState, selinuxAvailable: false })));
 
+        // Check for the docker CLI so the failure empty state can tell "docker
+        // is not installed" apart from "the docker service failed to connect".
+        cockpit.spawn(["docker", "--version"], { err: "ignore" })
+                .then(() => setState(prevState => ({ ...prevState, dockerInstalled: true })))
+                .catch(() => setState(prevState => ({ ...prevState, dockerInstalled: false })));
+
         const locationChanged = () => onNavigateRef.current();
         cockpit.addEventListener("locationchanged", locationChanged);
         onNavigateRef.current();
@@ -699,9 +709,27 @@ const Application = () => {
         cockpit.jump("/system/services#/docker.service");
     };
 
-    // Show the troubleshoot empty state when no users are available,
-    // i.e. every docker service failed to connect.
+    // Show a failure empty state when no users are available, i.e. every docker
+    // service failed to connect. If the docker CLI is not even installed, point
+    // the user to the installation instructions instead of the service page.
     if (state.users.length === 0) {
+        if (state.dockerInstalled === false) {
+            return (
+                <Page className="pf-m-no-sidebar">
+                    <PageSection hasBodyWrapper={false}>
+                        <EmptyState headingLevel="h2" icon={ExclamationCircleIcon} titleText={_("Docker is not installed")} variant={EmptyStateVariant.full}>
+                            <EmptyStateBody>
+                                {_("Docker is not installed on this system. Install the docker service to manage your containers here.")}{" "}
+                                <Button variant="link" isInline component="a" href="https://docs.docker.com/engine/install/" target="_blank" rel="noopener noreferrer">
+                                    {_("See Docker installation instructions")}
+                                </Button>
+                            </EmptyStateBody>
+                        </EmptyState>
+                    </PageSection>
+                </Page>
+            );
+        }
+
         return (
             <Page className="pf-m-no-sidebar">
                 <PageSection hasBodyWrapper={false}>

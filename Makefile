@@ -1,6 +1,9 @@
 # extract name from package.json
 PACKAGE_NAME := $(shell awk '/"name":/ {gsub(/[",]/, "", $$2); print $$2}' package.json)
-RPM_NAME := cockpit-$(PACKAGE_NAME)
+# this project's package name already carries the cockpit- prefix (e.g. its
+# cockpit URL is /cockpit-docker), unlike upstream modules which use a bare
+# name and get the prefix added here
+RPM_NAME := $(if $(filter cockpit-%,$(PACKAGE_NAME)),$(PACKAGE_NAME),cockpit-$(PACKAGE_NAME))
 VERSION := $(shell T=$$(git describe 2>/dev/null) || T=1; echo $$T | tr '-' '.')
 ifeq ($(TEST_OS),)
 TEST_OS = centos-9-stream
@@ -10,7 +13,7 @@ TARFILE=$(RPM_NAME)-$(VERSION).tar.xz
 NODE_CACHE=$(RPM_NAME)-node-$(VERSION).tar.xz
 SPEC=$(RPM_NAME).spec
 PREFIX ?= /usr/local
-APPSTREAMFILE=org.cockpit_project.$(subst -,_,$(PACKAGE_NAME)).metainfo.xml
+APPSTREAMFILE=in.yashjawale.cockpit_docker.metainfo.xml
 VM_IMAGE=$(CURDIR)/test/images/$(TEST_OS)
 # stamp file to check for node_modules/
 NODE_MODULES_TEST=package-lock.json

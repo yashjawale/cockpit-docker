@@ -1,7 +1,7 @@
 Name: cockpit-docker
 Version: %{VERSION}
 Release: 1%{?dist}
-Summary: Cockpit Starter Kit Example Module
+Summary: Cockpit module for managing Docker containers
 License: LGPL-2.1-or-later
 
 # distributions which ship nodejs-esbuild can rebuild the bundle during package build
@@ -37,7 +37,8 @@ Requires: cockpit-bridge
 %{NPM_PROVIDES}
 
 %description
-Cockpit Starter Kit Example Module
+A simple Cockpit module for managing Docker containers and images: start,
+stop, remove and inspect containers, run and search images, and manage stacks.
 
 %prep
 %autosetup -n %{name}

@@ -1,23 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="addon">
-  <id>org.cockpit_project.starter_kit</id>
+  <id>in.yashjawale.cockpit_docker</id>
   <metadata_license>CC0-1.0</metadata_license>
-  <name>Starter Kit</name>
-  <summary>Scaffolding for a cockpit module</summary>
+  <name>Cockpit Docker</name>
+  <summary>Manage Docker containers and images</summary>
   <description>
     <p>
-      Scaffolding for a cockpit module.
-
-      This is just a demo which does not do much. Please replace
-      this with a real description.
+      A simple Cockpit module for managing Docker containers and images.
+    </p>
+    <p>
+      You can start, stop, remove and inspect containers, run and search
+      images, create and manage stacks, and more.
     </p>
   </description>
   <extends>org.cockpit_project.cockpit</extends>
   <launchable type="cockpit-manifest">cockpit-docker</launchable>
   <url type="homepage">https://github.com/yashjawale/cockpit-docker</url>
   <url type="bugtracker">https://github.com/yashjawale/cockpit-docker/issues</url>
-  <update_contact>cockpit-devel_AT_lists.fedorahosted.org</update_contact>
-  <developer id="org.cockpit-project">
-    <name>Cockpit Project</name>
+  <update_contact>yash25.j@gmail.com</update_contact>
+  <developer id="in.yashjawale">
+    <name>Yash Jawale</name>
   </developer>
 </component>

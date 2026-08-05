@@ -18,7 +18,6 @@
 /bots
 /cockpit-*.spec
 /cockpit-*.tar.xz
-/cockpit-navigator.spec
 /deb-build/
 /debian/
 /dist/

@@ -1,6 +1,6 @@
-# Create a GitHub upstream release. Replace "TARNAME" with your project tarball
-# name and enable this by dropping the ".disabled" suffix from the file name.
-# See README.md.
+# Create a GitHub upstream release on every push of a version tag (e.g. "123"):
+# builds the source tarball, builds and attaches a Debian package, and
+# publishes them as release assets. See README.md.
 name: release
 on:
   push:

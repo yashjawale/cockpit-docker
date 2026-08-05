@@ -36,16 +36,18 @@ jobs:
     targets: *test_targets
 
   # Build releases in COPR: https://packit.dev/docs/configuration/#copr_build
-  #- job: copr_build
-  #  trigger: release
-  #  owner: your_copr_login
-  #  project: your_copr_project
-  #  preserve_project: True
-  #  targets:
-  #    - fedora-all
-  #    - centos-stream-9-x86_64
+  # The COPR owner and project must exist; adjust them to your namespace.
+  - job: copr_build
+    trigger: release
+    owner: yashjawale
+    project: cockpit-docker
+    preserve_project: True
+    targets:
+      - fedora-all
+      - centos-stream-9-x86_64
 
   # Build releases in Fedora: https://packit.dev/docs/configuration/#propose_downstream
+  # These require Fedora packager rights and are left disabled for now.
   #- job: propose_downstream
   #  trigger: release
   #  dist_git_branches:

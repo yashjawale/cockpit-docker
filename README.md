@@ -186,11 +186,10 @@ changes:
 - fix bug #123
 ```
 
-Pushing the release tag triggers the [release.yml](.github/workflows/release.yml.disabled)
+Pushing the release tag triggers the [release.yml](.github/workflows/release.yml)
 [GitHub action](https://github.com/features/actions) workflow. This creates the
-official release tarball and publishes as upstream release to GitHub. The
-workflow is disabled by default -- to use it, edit the file as per the comment
-at the top, and rename it to just `*.yml`.
+official release tarball, builds and attaches a Debian package, and publishes
+them as upstream release to GitHub.
 
 The Fedora and COPR releases are done with [Packit](https://packit.dev/),
 see the [packit.yaml](./packit.yaml) control file.

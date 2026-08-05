@@ -51,6 +51,86 @@ class TestApplication(testlib.MachineCase):
             b.enter_page("/cockpit-docker")
             b.wait_not_present(".container-name")
 
+    def testContainerActions(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cockpit-docker")
+        try:
+            m.execute("docker run -d --name test-actions busybox sleep 10000")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_in_text("#containers-containers tr[data-row-name='0-test-actions']", "Running")
+
+            # pause and resume the container from the row kebab menu
+            b.click("#containers-containers tr[data-row-name='0-test-actions'] .pf-v6-c-menu-toggle")
+            b.click(".pf-v6-c-menu__item:contains('Pause')")
+            b.wait_in_text("#containers-containers tr[data-row-name='0-test-actions']", "Paused")
+
+            b.click("#containers-containers tr[data-row-name='0-test-actions'] .pf-v6-c-menu-toggle")
+            b.click(".pf-v6-c-menu__item:contains('Resume')")
+            b.wait_in_text("#containers-containers tr[data-row-name='0-test-actions']", "Running")
+        finally:
+            m.execute("docker rm -f test-actions")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_not_present(".container-name")
+
+    def testContainerDetails(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cockpit-docker")
+        try:
+            m.execute("docker run -d --name test-details busybox sleep 10000")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_visible("#containers-containers tr[data-row-name='0-test-details']")
+
+            # expand the row; the Details tab shows the image metadata
+            b.click("#containers-containers tr[data-row-name='0-test-details'] .pf-v6-c-table__toggle button")
+            b.wait_in_text("#containers-containers .container-details-basic", "busybox")
+            b.wait_in_text("#containers-containers .container-details-state", "Up since:")
+        finally:
+            m.execute("docker rm -f test-details")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_not_present(".container-name")
+
+    def testContainersFilters(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cockpit-docker")
+        try:
+            m.execute("docker run -d --name test-running busybox sleep 10000")
+            m.execute("docker run --name test-exited busybox true")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+
+            # both containers are listed with their state
+            b.wait_in_text("#containers-containers tr[data-row-name='0-test-running']", "Running")
+            b.wait_in_text("#containers-containers tr[data-row-name='0-test-exited']", "Exited")
+
+            # the "Only running" filter hides stopped containers
+            b.set_val("#containers-containers-filter", "running")
+            b.wait_in_text("#containers-containers tr[data-row-name='0-test-running']", "Running")
+            b.wait_not_present("#containers-containers tr[data-row-name='0-test-exited']")
+            b.set_val("#containers-containers-filter", "all")
+            b.wait_visible("#containers-containers tr[data-row-name='0-test-exited']")
+
+            # the text search filters the listing
+            b.set_input_text("#containers-filter input", "test-exited")
+            b.wait_in_text("#containers-containers tr[data-row-name='0-test-exited']", "Exited")
+            b.wait_not_present("#containers-containers tr[data-row-name='0-test-running']")
+            b.set_input_text("#containers-filter input", "")
+            b.wait_visible("#containers-containers tr[data-row-name='0-test-running']")
+        finally:
+            m.execute("docker rm -f test-running test-exited")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_not_present(".container-name")
+
     def testImages(self):
         b = self.browser
 

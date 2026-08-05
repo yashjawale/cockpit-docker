@@ -99,10 +99,11 @@ $(DEB_DIR)/changelog: packaging/debian/changelog.in
 	mkdir -p $(DEB_DIR)
 	sed 's/%{VERSION}/$(VERSION)/; s/%{DATE}/$(shell date -R)/' $< > $@
 
-$(DEB_DIR)/rules: packaging/debian/rules packaging/debian/control packaging/debian/copyright packaging/debian/source/format $(DEB_DIR)/changelog
-	mkdir -p $(DEB_DIR)/source
-	cp packaging/debian/control packaging/debian/rules packaging/debian/copyright $(DEB_DIR)/
+$(DEB_DIR)/rules: packaging/debian/rules packaging/debian/control packaging/debian/copyright packaging/debian/source/format packaging/debian/watch packaging/debian/upstream/metadata $(DEB_DIR)/changelog
+	mkdir -p $(DEB_DIR)/source $(DEB_DIR)/upstream
+	cp packaging/debian/control packaging/debian/rules packaging/debian/copyright packaging/debian/watch $(DEB_DIR)/
 	cp packaging/debian/source/format $(DEB_DIR)/source/format
+	cp packaging/debian/upstream/metadata $(DEB_DIR)/upstream/metadata
 	chmod +x $(DEB_DIR)/rules
 
 $(DIST_TEST): $(NODE_MODULES_TEST) $(COCKPIT_REPO_STAMP) $(shell find src/ -type f) package.json build.js

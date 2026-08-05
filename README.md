@@ -48,9 +48,8 @@ The project ships packaging metadata for several distributions:
   the release tarball at `make dist` time. The release tarball ships the
   pre-built `dist/` bundle, so `dpkg-buildpackage -b -us -uc` can be run
   directly from the extracted tarball without a node toolchain. Use
-  `make deb` to build a `.deb` locally, or the
-  [Debian package](./.github/workflows/debian-package.yml) workflow to build
-  and attach it to a GitHub release.
+  `make deb` to build a `.deb` locally; the [release](./.github/workflows/release.yml)
+  workflow builds and attaches one to every GitHub release.
 
 For development, you usually want to run your module straight out of the git
 tree. To do that, run `make devel-install`, which links your checkout to the

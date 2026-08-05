@@ -1,5 +1,5 @@
 Source: cockpit-docker
-Section: web
+Section: admin
 Priority: optional
 Maintainer: Yash Jawale <yash25.j@gmail.com>
 Build-Depends: debhelper-compat (= 13), gettext
@@ -9,7 +9,9 @@ Homepage: https://github.com/yashjawale/cockpit-docker
 
 Package: cockpit-docker
 Architecture: all
-Depends: cockpit-bridge, ${misc:Depends}
+Multi-Arch: foreign
+Depends: ${misc:Depends},
+         cockpit-bridge,
 Description: Cockpit module for managing Docker containers
  A simple Cockpit module for managing Docker containers and images: start,
  stop, remove and inspect containers, run and search images, and manage

@@ -1,0 +1,4 @@
+version=4
+opts="searchmode=plain,filenamemangle=s/.+\/cockpit-docker-@ANY_VERSION@\.tar\.xz/cockpit-docker-$1\.tar\.xz/" \
+https://api.github.com/repos/yashjawale/cockpit-docker/releases \
+https://github.com/yashjawale/cockpit-docker/releases/download/\d[\.\d]*/cockpit-docker-@ANY_VERSION@.tar.xz

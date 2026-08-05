@@ -1,5 +1,9 @@
 #!/usr/bin/make -f
 
+# The Makefile defaults to PREFIX=/usr/local; the Debian package installs
+# into /usr
+export PREFIX=/usr
+
 %:
 	dh $@
 
@@ -7,14 +11,12 @@ override_dh_auto_clean:
 	# `make clean` would delete the pre-built dist/ bundle and the debian/
 	# packaging directory itself, so skip it; dh_clean still runs afterwards
 
+execute_after_dh_auto_clean:
+	rm -f po/LINGUAS
+
 override_dh_auto_build:
 	# The release tarball ships a pre-built dist/ directory, so there is
 	# nothing to build here; building from a git checkout requires `make dist`.
-
-override_dh_auto_install:
-	dh_auto_install -- PREFIX=/usr
-	# drop source maps, they are large and just for debugging
-	find debian -path '*/usr/share/cockpit/*' -name '*.map' -delete
 
 override_dh_auto_test:
 	# the integration tests need a test VM and run in CI, not during the build

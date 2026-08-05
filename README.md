@@ -188,37 +188,12 @@ changes:
 
 Pushing the release tag triggers the [release.yml](.github/workflows/release.yml.disabled)
 [GitHub action](https://github.com/features/actions) workflow. This creates the
-official release tarball, builds and attaches a Debian package, and publishes
-them as upstream release to GitHub. The workflow is disabled by default -- to
-use it, edit the file as per the comment at the top, and rename it to just
-`*.yml`.
+official release tarball and publishes as upstream release to GitHub. The
+workflow is disabled by default -- to use it, edit the file as per the comment
+at the top, and rename it to just `*.yml`.
 
 The Fedora and COPR releases are done with [Packit](https://packit.dev/),
 see the [packit.yaml](./packit.yaml) control file.
-
-## GPG signing of releases
-
-When the `GPG_PRIVATE_KEY` and `GPG_PASSPHRASE` repository secrets are
-configured, the release workflow also signs the source tarball and the Debian
-package with detached armored signatures (`*.asc`) and attaches a `KEYS` file
-with the public key. To set this up:
-
-1. Create a dedicated signing key, e.g.:
-   `gpg --quick-generate-key "Cockpit Docker Releases <release@yashjawale.dev>" rsa4096 sign`
-2. Store the passphrase-protected private key as the base64-encoded `GPG_PRIVATE_KEY`
-   secret and its passphrase as `GPG_PASSPHRASE`:
-   `gpg --armor --export-secret-key <key-id> | base64 -w0`
-   `gh secret set GPG_PRIVATE_KEY` / `gh secret set GPG_PASSPHRASE`
-3. Publish the public key once, e.g. on [keys.openpgp.org](https://keys.openpgp.org),
-   and attach it to each release as the `KEYS` file.
-
-Users can then verify a release with:
-
-    gpg --import KEYS
-    gpg --verify cockpit-docker-<version>.tar.xz.asc cockpit-docker-<version>.tar.xz
-
-The workflow skips signing when the secrets are not set, so releases work
-either way.
 
 # Automated maintenance
 

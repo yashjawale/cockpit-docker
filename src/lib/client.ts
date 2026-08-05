@@ -7,7 +7,7 @@
 import type { JsonObject, JsonValue } from "cockpit";
 import cockpit from "cockpit";
 
-import type { Connection, MonitorCallback } from "./rest.ts";
+import { UID_DOCKER_DESKTOP, type Connection, type MonitorCallback, type Uid } from "./rest.ts";
 
 import type { DockerContainer, DockerImage, ImageHistoryLayer, ImageSearchResult } from "./types.ts";
 
@@ -363,22 +363,57 @@ export const containerExists = (con: Connection, id: string) => dockerCall(con, 
 
 /* === docker-compose stacks ============================================== */
 
-/** Directory holding the files of the stacks created by this plugin */
+/** Directory holding the files of the system-wide daemon's stacks */
 export const STACKS_DIR = "/var/lib/cockpit-docker/stacks";
 
 /**
- * List the directories under STACKS_DIR, i.e. all stacks created by this
- * plugin regardless of whether they are running or stopped.
+ * Superuser mode needed to reach the stack files of a daemon owner.
  *
+ * The system daemon's stacks live under /var/lib and are only writable by
+ * root. Rootless daemons belong to a regular user, so their stacks are
+ * accessed as that user without privilege escalation.
+ *
+ * @param uid The uid of the daemon owner, or null for the session user
+ * @returns The cockpit superuser mode to use, or undefined for none
+ */
+export function getStacksSuperuser(uid: Uid): cockpit.ChannelOptions["superuser"] {
+    return (uid === 0 || uid === UID_DOCKER_DESKTOP) ? "try" : undefined;
+}
+
+/**
+ * Resolve the directory that holds the stack files of a daemon owner.
+ *
+ * The system daemon stores stacks under /var/lib, which only root can write.
+ * Rootless daemons belong to a regular user, so their stacks live in that
+ * user's XDG data directory instead.
+ *
+ * @param uid The uid of the daemon owner, or null for the session user
+ * @returns The absolute path of the stacks directory
+ */
+export function getStacksDir(uid: Uid): string {
+    if (uid === 0 || uid === UID_DOCKER_DESKTOP)
+        return STACKS_DIR;
+    // DOCKER_DESKTOP_HOME holds the session user's home directory
+    const home = sessionStorage.getItem('DOCKER_DESKTOP_HOME');
+    return home ? `${home}/.local/share/cockpit-docker/stacks` : STACKS_DIR;
+}
+
+/**
+ * List the stacks of a daemon owner, i.e. the directories under its stacks
+ * directory regardless of whether they are running or stopped. An empty or
+ * missing directory simply yields an empty list.
+ *
+ * @param uid The uid of the daemon owner, or null for the session user
  * @returns A promise resolving to the stack project names, sorted
  */
-export function listStacks(): Promise<string[]> {
-    return cockpit.spawn(["find", STACKS_DIR, "-maxdepth", "1", "-mindepth", "1", "-type", "d", "-printf", "%f\\n"], {
-        superuser: "try",
+export function listStacks(uid: Uid): Promise<string[]> {
+    return cockpit.spawn(["find", getStacksDir(uid), "-maxdepth", "1", "-mindepth", "1", "-type", "d", "-printf", "%f\\n"], {
+        superuser: getStacksSuperuser(uid),
         err: "message",
     })
             .then(output => output.split("\n").filter(name => name.length > 0))
-            .then(names => names.sort());
+            .then(names => names.sort())
+            .catch(() => []);
 }
 
 /**
@@ -390,13 +425,14 @@ export function listStacks(): Promise<string[]> {
  *
  * @param dir    Directory containing the stack's docker-compose.yml
  * @param action Either "up" to start or "stop" to stop the stack
+ * @param uid    The uid of the daemon owner, or null for the session user
  * @returns A promise resolving when the compose command has finished
  */
-export function composeAction(dir: string, action: "up" | "stop"): Promise<string> {
+export function composeAction(dir: string, action: "up" | "stop", uid: Uid): Promise<string> {
     const args = action === "up" ? ["up", "-d"] : ["stop"];
     return cockpit.spawn(["docker", "compose", ...args], {
         directory: dir,
-        superuser: "try",
+        superuser: getStacksSuperuser(uid),
         err: "message",
     });
 }

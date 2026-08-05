@@ -43,7 +43,7 @@ import { dockerStatsToView, image_name, quote_cmdline, states } from '../lib/uti
 import { useDockerInfo } from '../lib/context.tsx';
 
 import type { ListingTableColumnProps, ListingTableRowProps } from "cockpit-components-table";
-import type { Connection } from '../lib/rest.ts';
+import type { Connection, Uid } from '../lib/rest.ts';
 import type { ContainerStats, DockerContainer, DockerImage, Notification, UnusedContainer, User } from '../lib/types.ts';
 
 import '../styles/Containers.scss';
@@ -99,17 +99,19 @@ const ContainerOverActions = ({ handlePruneUnusedContainers, unusedContainers }:
  * or remove its directory. Starting reloads the stack list so the stack moves
  * to the containers listing once its containers appear.
  */
-const InactiveStackActions = ({ project, onAddNotification }: {
+const InactiveStackActions = ({ project, uid, onAddNotification }: {
     project: string,
+    uid: Uid,
     onAddNotification: (notification: Notification) => void,
 }) => {
     const [inProgress, setInProgress] = useState(false);
     const Dialogs = useDialogs();
-    const dir = `${client.STACKS_DIR}/${project}`;
+    const dir = `${client.getStacksDir(uid)}/${project}`;
+    const superuser = client.getStacksSuperuser(uid);
 
     const startStack = () => {
         setInProgress(true);
-        client.composeAction(dir, "up")
+        client.composeAction(dir, "up", uid)
                 .catch(ex => {
                     const error = cockpit.format(_("Failed to start stack $0"), project); // not-covered: OS error
                     onAddNotification({ type: 'danger', error, errorDetail: ex.message });
@@ -122,14 +124,14 @@ const InactiveStackActions = ({ project, onAddNotification }: {
      */
     const editStack = () => {
         Promise.all([
-            cockpit.file(`${dir}/docker-compose.yml`, { superuser: "try" })
+            cockpit.file(`${dir}/docker-compose.yml`, { superuser })
                     .read()
                     .catch(() => ""),
-            cockpit.file(`${dir}/.env`, { superuser: "try" })
+            cockpit.file(`${dir}/.env`, { superuser })
                     .read()
                     .catch(() => ""),
         ]).then(([compose, env]) => {
-            Dialogs.show(<CreateStackModal projectName={project} initialCompose={compose} initialEnv={env} />);
+            Dialogs.show(<CreateStackModal projectName={project} initialCompose={compose} initialEnv={env} uid={uid} />);
         });
     };
 
@@ -138,7 +140,7 @@ const InactiveStackActions = ({ project, onAddNotification }: {
      * the files on disk are deleted.
      */
     const removeStack = () => {
-        cockpit.spawn(["rm", "-rf", dir], { superuser: "try", err: "message" })
+        cockpit.spawn(["rm", "-rf", dir], { superuser, err: "message" })
                 .catch(ex => {
                     const error = cockpit.format(_("Failed to remove stack $0"), project); // not-covered: OS error
                     onAddNotification({ type: 'danger', error, errorDetail: ex.message });
@@ -475,20 +477,28 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
     // enabled but it is not available in headless mode.
     const webglAvailable = !!document.createElement("canvas").getContext("webgl2");
 
+    // Daemon owner that this session's stacks belong to: the system daemon as
+    // long as it is reachable (root or an admin via escalation), otherwise the
+    // session user's rootless daemon.
+    const stacksOwner: Uid = users.some(u => u.uid === 0 && u.con) ? 0 : null;
+
     /**
      * Refresh the list of stacks on disk. Stacks whose containers are running
      * are shown in the containers listing; the remaining (inactive) ones are
      * listed separately with a start button.
      */
     const refreshStacks = () => {
-        client.listStacks()
+        client.listStacks(stacksOwner)
                 .then(setStacks)
                 .catch(ex => console.warn("listStacks failed:", ex.toString()));
     };
 
     useEffect(() => {
+        // refresh when the daemon connections change, so the stacks end up in
+        // the right (system vs. rootless) directory once it is known
         refreshStacks();
-    }, []);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [users]);
 
     useEffect(() => {
         const onWindowResize = () => setWidth(cardRef.current?.clientWidth ?? 0);
@@ -855,7 +865,7 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
                     </ToolbarItem>
                     <Divider orientation={{ default: "vertical" }} />
                     <ToolbarItem>
-                        <Button variant="secondary" key="create-new-stack-action" id="containers-containers-create-stack-btn" onClick={() => Dialogs.show(<CreateStackModal onStackCreated={refreshStacks} />)}>
+                        <Button variant="secondary" key="create-new-stack-action" id="containers-containers-create-stack-btn" onClick={() => Dialogs.show(<CreateStackModal onStackCreated={refreshStacks} uid={stacksOwner} />)}>
                             {_("Create stack")}
                         </Button>
                     </ToolbarItem>
@@ -950,7 +960,7 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
                                             { title: project },
                                             {
                                                 title: (
-                                                    <InactiveStackActions project={project} onAddNotification={onAddNotification} />
+                                                    <InactiveStackActions project={project} uid={stacksOwner} onAddNotification={onAddNotification} />
                                                 ),
                                                 props: { className: "pf-v6-c-table__action" },
                                             },

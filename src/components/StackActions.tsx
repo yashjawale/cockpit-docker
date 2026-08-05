@@ -37,9 +37,6 @@ import type { ContainerStats, DockerContainer, DockerPortBinding, Notification }
 
 const _ = cockpit.gettext;
 
-/** Directory holding the files of stacks created by this plugin */
-const STACKS_DIR = "/var/lib/cockpit-docker/stacks";
-
 /**
  * Aggregate the published ports of all stack containers into a single mapping.
  *
@@ -166,11 +163,12 @@ export const StackActions = ({ con, containers, containersStats, onAddNotificati
             setEditAvailable(false);
             return;
         }
-        cockpit.file(`${STACKS_DIR}/${project}/docker-compose.yml`, { superuser: "try" })
+        const stacksDir = client.getStacksDir(con.uid);
+        cockpit.file(`${stacksDir}/${project}/docker-compose.yml`, { superuser: client.getStacksSuperuser(con.uid) })
                 .read()
                 .then(content => setEditAvailable(content !== null))
                 .catch(() => setEditAvailable(false));
-    }, [project]);
+    }, [project, con]);
 
     const running = containers.filter(container => container.State?.Status === "running");
     const stopped = containers.filter(container => container.State?.Status !== "running");
@@ -243,16 +241,17 @@ export const StackActions = ({ con, containers, containersStats, onAddNotificati
     const editStack = () => {
         if (!project)
             return;
-        const dir = `${STACKS_DIR}/${project}`;
+        const dir = `${client.getStacksDir(con.uid)}/${project}`;
+        const superuser = client.getStacksSuperuser(con.uid);
         Promise.all([
-            cockpit.file(`${dir}/docker-compose.yml`, { superuser: "try" })
+            cockpit.file(`${dir}/docker-compose.yml`, { superuser })
                     .read()
                     .catch(() => ""),
-            cockpit.file(`${dir}/.env`, { superuser: "try" })
+            cockpit.file(`${dir}/.env`, { superuser })
                     .read()
                     .catch(() => ""),
         ]).then(([compose, env]) => {
-            Dialogs.show(<CreateStackModal projectName={project} initialCompose={compose} initialEnv={env} />);
+            Dialogs.show(<CreateStackModal projectName={project} initialCompose={compose} initialEnv={env} uid={con.uid} />);
         });
     };
 

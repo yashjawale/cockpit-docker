@@ -1,8 +1,9 @@
 /*
  * SPDX-License-Identifier: LGPL-2.1-or-later
  *
- * Dialog creating a new docker-compose stack: a project directory under
- * /var/lib/cockpit-docker/stacks holding a docker-compose.yml and .env file.
+ * Dialog creating a new docker-compose stack: a project directory in the
+ * stacks directory of the daemon owner, holding a docker-compose.yml and .env
+ * file.
  */
 
 import React, { useState } from 'react';
@@ -24,7 +25,10 @@ import cockpit from 'cockpit';
 import * as dockerNames from 'docker-names';
 
 import { ErrorNotification } from './Notification.tsx';
+import * as client from '../lib/client.ts';
 import { is_valid_container_name } from '../lib/util.ts';
+
+import type { Uid } from '../lib/rest.ts';
 
 const _ = cockpit.gettext;
 
@@ -55,16 +59,18 @@ const DEFAULT_ENV = `# Environment variables for the stack, e.g.
  * Dialog creating or editing a docker-compose stack.
  *
  * Asks for a project name and lets the user edit the stack's docker-compose.yml
- * and .env files. On save both files are written into
- * /var/lib/cockpit-docker/stacks/<project-name>/.
+ * and .env files. On save both files are written into the stacks directory of
+ * the given daemon owner (system daemon or the user's rootless daemon).
  */
-const CreateStackModal = ({ projectName, initialCompose, initialEnv, onStackCreated }: {
+const CreateStackModal = ({ projectName, initialCompose, initialEnv, uid, onStackCreated }: {
     /** The project name to prefill; defaults to a random name when creating */
     projectName?: string,
     /** The docker-compose.yml content to prefill; defaults to a template */
     initialCompose?: string,
     /** The .env content to prefill; defaults to a template */
     initialEnv?: string,
+    /** Owner of the daemon the stack belongs to, to resolve its directory */
+    uid: Uid,
     /** Invoked after the stack files have been written (not on edit) */
     onStackCreated?: () => void,
 }) => {
@@ -94,7 +100,7 @@ const CreateStackModal = ({ projectName, initialCompose, initialEnv, onStackCrea
     };
 
     /**
-     * Write the stack files into /var/lib/cockpit-docker/stacks/<project>/,
+     * Write the stack files into the daemon owner's stacks directory,
      * closing the dialog on success. The stack is not started automatically;
      * the user starts it later from the inactive stacks section.
      */
@@ -108,10 +114,11 @@ const CreateStackModal = ({ projectName, initialCompose, initialEnv, onStackCrea
         setDialogError("");
         setInProgress(true);
 
-        const dir = `/var/lib/cockpit-docker/stacks/${name}`;
-        cockpit.spawn(["mkdir", "-p", dir], { superuser: "try", err: "message" })
-                .then(() => cockpit.file(`${dir}/docker-compose.yml`, { superuser: "try" }).replace(compose))
-                .then(() => cockpit.file(`${dir}/.env`, { superuser: "try" }).replace(env))
+        const dir = `${client.getStacksDir(uid)}/${name}`;
+        const superuser = client.getStacksSuperuser(uid);
+        cockpit.spawn(["mkdir", "-p", dir], { superuser, err: "message" })
+                .then(() => cockpit.file(`${dir}/docker-compose.yml`, { superuser }).replace(compose))
+                .then(() => cockpit.file(`${dir}/.env`, { superuser }).replace(env))
                 .then(() => {
                     if (!projectName)
                         onStackCreated?.();

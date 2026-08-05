@@ -51,6 +51,61 @@ class TestApplication(testlib.MachineCase):
             b.enter_page("/cockpit-docker")
             b.wait_not_present(".container-name")
 
+    def testImages(self):
+        b = self.browser
+
+        self.login_and_go("/cockpit-docker")
+
+        # the image listing is collapsed by default; expand it
+        b.click("#containers-images .pf-v6-c-expandable-section__toggle button")
+        row = "#containers-images tr[data-row-name='0-busybox:latest']"
+        b.wait_visible(row)
+
+        # the pre-pulled busybox image is listed with its metadata
+        b.wait_in_text(row, "busybox:latest")
+        b.wait_in_text(row, "system")
+        b.wait_in_text(row, "unused")
+        b.wait_in_text("#containers-images", "1 image total")
+
+        # the listing can be collapsed again
+        b.click("#containers-images .pf-v6-c-expandable-section__toggle button")
+        b.wait_not_visible("#containers-images .image-name")
+
+    def testImageDetails(self):
+        b = self.browser
+
+        self.login_and_go("/cockpit-docker")
+        b.click("#containers-images .pf-v6-c-expandable-section__toggle button")
+        b.wait_visible("#containers-images .image-name")
+
+        # expand the image row
+        b.click("#containers-images tr[data-row-name='0-busybox:latest'] .pf-v6-c-table__toggle button")
+        b.wait_visible("#containers-images .pf-v6-c-tabs__list")
+
+        # the Details tab shows the image metadata
+        b.wait_in_text("#containers-images .image-details", "busybox:latest")
+        b.wait_in_text("#containers-images .image-details", "Command")
+
+        # the History tab shows the image build history
+        b.click("#containers-images .pf-v6-c-tabs__item button:contains('History')")
+        b.wait_in_text("#containers-images .ct-listing-panel-body .pf-v6-c-table", "Created by")
+
+    def testImageRunDialog(self):
+        b = self.browser
+
+        self.login_and_go("/cockpit-docker")
+        b.click("#containers-images .pf-v6-c-expandable-section__toggle button")
+        b.wait_visible("#containers-images .image-name")
+
+        # opening the run-image dialog from the row action
+        b.click("#containers-images .ct-container-create")
+        b.wait_visible(".pf-v6-c-modal-box")
+        b.wait_text(".pf-v6-c-modal-box__title", "Create container")
+        b.wait_visible("#run-image-dialog-name")
+        # cancel without creating anything
+        b.click(".btn-cancel")
+        b.wait_not_present(".pf-v6-c-modal-box")
+
 
 # This test gets its own fresh VM (not @nondestructive) because it makes
 # permanent changes: it hides the docker CLI and stops the docker daemon.

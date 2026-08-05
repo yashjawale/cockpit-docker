@@ -157,6 +157,20 @@ class TestApplication(testlib.MachineCase):
             b.click(row + " .pf-v6-c-menu-toggle")
             b.click(".pf-v6-c-menu__item:contains('Restart')")
             b.wait_in_text(row, "Running")
+
+            # force restart and force stop use a zero timeout
+            b.click(row + " .pf-v6-c-menu-toggle")
+            b.click(".pf-v6-c-menu__item:contains('Force restart')")
+            b.wait_in_text(row, "Running")
+
+            b.click(row + " .pf-v6-c-menu-toggle")
+            b.click(".pf-v6-c-menu__item:contains('Force stop')")
+            b.wait_in_text(row, "Exited")
+
+            # start it again so the cleanup removes a running container
+            b.click(row + " .pf-v6-c-menu-toggle")
+            b.click(".pf-v6-c-menu__item:contains('Start')")
+            b.wait_in_text(row, "Running")
         finally:
             m.execute("docker rm -f test-restart")
             b.reload()
@@ -217,6 +231,41 @@ class TestApplication(testlib.MachineCase):
             b.wait_not_present("#containers-containers tr[data-row-name='0-test-forcedelete']")
         finally:
             m.execute("docker rm -f test-forcedelete")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_not_present(".container-name")
+
+    def testContainerCommit(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cockpit-docker")
+        try:
+            m.execute("docker run -d --name test-commit busybox sleep 10000")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            row = "#containers-containers tr[data-row-name='0-test-commit']"
+            b.wait_visible(row)
+
+            # committing without an image name is rejected
+            b.click(row + " .pf-v6-c-menu-toggle")
+            b.click(".pf-v6-c-menu__item:contains('Commit')")
+            b.wait_visible(".pf-v6-c-modal-box")
+            b.wait_text(".pf-v6-c-modal-box__title", "Commit container")
+            b.click(".btn-ctr-commit")
+            b.wait_in_text(".pf-v6-c-modal-box", "Image name is required")
+
+            # commit the container to a new image
+            b.set_input_text("#commit-dialog-image-name", "test-commit-image")
+            b.click(".btn-ctr-commit")
+            b.wait_not_present(".pf-v6-c-modal-box")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.click("#containers-images .pf-v6-c-expandable-section__toggle button")
+            b.wait_visible("#containers-images tr[data-row-name='0-test-commit-image:latest']")
+        finally:
+            m.execute("docker rmi test-commit-image:latest || true")
+            m.execute("docker rm -f test-commit")
             b.reload()
             b.enter_page("/cockpit-docker")
             b.wait_not_present(".container-name")
@@ -531,6 +580,37 @@ EOF''')
             b.reload()
             b.enter_page("/cockpit-docker")
             b.wait_visible("#containers-images")
+
+    def testImageDeleteInUse(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cockpit-docker")
+        try:
+            m.execute("docker run -d --name test-imguse busybox sleep 10000")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.click("#containers-images .pf-v6-c-expandable-section__toggle button")
+            row = "#containers-images tr[data-row-name='0-busybox:latest']"
+            b.wait_visible(row)
+
+            # deleting an image a running container uses must be confirmed
+            b.click(row + " .pf-v6-c-menu-toggle")
+            b.click(".pf-v6-c-menu__item:contains('Delete')")
+            b.wait_visible(".pf-v6-c-modal-box")
+            b.click("#btn-img-delete")
+            b.wait_visible(".pf-v6-c-modal-box")
+            b.wait_in_text(".pf-v6-c-modal-box", "Delete busybox:latest?")
+
+            # back out without force-removing the image
+            b.click(".pf-v6-c-modal-box__footer button:contains('Cancel')")
+            b.wait_not_present(".pf-v6-c-modal-box")
+            b.wait_visible("#containers-images tr[data-row-name='0-busybox:latest']")
+        finally:
+            m.execute("docker rm -f test-imguse")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_not_present(".container-name")
 
 
 # This test gets its own fresh VM (not @nondestructive) because it makes

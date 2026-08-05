@@ -131,6 +131,123 @@ class TestApplication(testlib.MachineCase):
             b.enter_page("/cockpit-docker")
             b.wait_not_present(".container-name")
 
+    def testContainerStopStartRestart(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cockpit-docker")
+        try:
+            m.execute("docker run -d --name test-restart busybox sleep 10000")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            row = "#containers-containers tr[data-row-name='0-test-restart']"
+            b.wait_in_text(row, "Running")
+
+            # stop the container from the row kebab menu
+            b.click(row + " .pf-v6-c-menu-toggle")
+            b.click(".pf-v6-c-menu__item:contains('Stop')")
+            b.wait_in_text(row, "Exited")
+
+            # start it again
+            b.click(row + " .pf-v6-c-menu-toggle")
+            b.click(".pf-v6-c-menu__item:contains('Start')")
+            b.wait_in_text(row, "Running")
+
+            # and restart it
+            b.click(row + " .pf-v6-c-menu-toggle")
+            b.click(".pf-v6-c-menu__item:contains('Restart')")
+            b.wait_in_text(row, "Running")
+        finally:
+            m.execute("docker rm -f test-restart")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_not_present(".container-name")
+
+    def testContainerRename(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cockpit-docker")
+        try:
+            m.execute("docker run --name test-oldname busybox true")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            row = "#containers-containers tr[data-row-name='0-test-oldname']"
+            b.wait_in_text(row, "Exited")
+
+            # renaming is only offered for stopped containers
+            b.click(row + " .pf-v6-c-menu-toggle")
+            b.click(".pf-v6-c-menu__item:contains('Rename')")
+            b.wait_visible(".pf-v6-c-modal-box")
+            b.wait_in_text(".pf-v6-c-modal-box", "Rename container test-oldname")
+            b.set_input_text("#rename-dialog-container-name", "test-renamed")
+            b.click("#btn-rename-dialog-container")
+            b.wait_not_present(".pf-v6-c-modal-box")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_visible("#containers-containers tr[data-row-name='0-test-renamed']")
+            b.wait_not_present("#containers-containers tr[data-row-name='0-test-oldname']")
+        finally:
+            m.execute("docker rm -f test-renamed test-oldname")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_not_present(".container-name")
+
+    def testContainerForceDelete(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cockpit-docker")
+        try:
+            m.execute("docker run -d --name test-forcedelete busybox sleep 10000")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            row = "#containers-containers tr[data-row-name='0-test-forcedelete']"
+            b.wait_in_text(row, "Running")
+
+            # deleting a running container asks for a force-remove confirmation
+            b.click(row + " .pf-v6-c-menu-toggle")
+            b.click(".pf-v6-c-menu__item:contains('Delete')")
+            b.wait_visible(".pf-v6-c-modal-box")
+            b.wait_in_text(".pf-v6-c-modal-box", "Delete test-forcedelete?")
+            b.click(".pf-v6-c-modal-box__footer button:contains('Force delete')")
+            b.wait_not_present(".pf-v6-c-modal-box")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_not_present("#containers-containers tr[data-row-name='0-test-forcedelete']")
+        finally:
+            m.execute("docker rm -f test-forcedelete")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_not_present(".container-name")
+
+    def testImageCreateRun(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cockpit-docker")
+        try:
+            b.click("#containers-images .pf-v6-c-expandable-section__toggle button")
+            b.wait_visible("#containers-images .image-name")
+            b.click("#containers-images .ct-container-create")
+            b.wait_visible(".pf-v6-c-modal-box")
+            b.wait_text(".pf-v6-c-modal-box__title", "Create container")
+
+            # create and run the pre-pulled busybox image, with a command that
+            # keeps the container running
+            b.set_input_text("#run-image-dialog-name", "test-from-image")
+            b.set_input_text("#run-image-dialog-command", "sleep 10000")
+            b.click("#create-image-create-run-btn")
+            b.wait_not_present(".pf-v6-c-modal-box")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_in_text("#containers-containers tr[data-row-name='0-test-from-image']", "Running")
+        finally:
+            m.execute("docker rm -f test-from-image")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_not_present(".container-name")
+
     def testCreateStackDialog(self):
         b = self.browser
         m = self.machine

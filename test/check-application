@@ -221,6 +221,85 @@ class TestApplication(testlib.MachineCase):
             b.enter_page("/cockpit-docker")
             b.wait_not_present(".container-name")
 
+    def testContainerIntegration(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cockpit-docker")
+        try:
+            m.execute("docker run -d --name test-integration -p 8080:80 -e FOO=bar -v /tmp/hostvol:/data busybox sleep 10000")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            row = "#containers-containers tr[data-row-name='0-test-integration']"
+            b.wait_visible(row)
+
+            # the Integration tab shows ports, volumes and environment variables
+            b.click(row + " .pf-v6-c-table__toggle button")
+            b.click("#containers-containers .pf-v6-c-tabs__item button:contains('Integration')")
+            b.wait_in_text("#containers-containers .container-integration-ports", "8080")
+            b.wait_in_text("#containers-containers .container-integration-ports", "80/tcp")
+            b.wait_in_text("#containers-containers .container-integration-volumes", "/tmp/hostvol")
+            b.wait_in_text("#containers-containers .container-integration-volumes", "/data")
+            b.wait_in_text("#containers-containers .container-integration-envs", "FOO=bar")
+        finally:
+            m.execute("docker rm -f test-integration")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_not_present(".container-name")
+
+    def testContainerHealth(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cockpit-docker")
+        try:
+            m.execute("docker run -d --name test-health --health-cmd='true' --health-interval=1s --health-retries=3 --health-timeout=1s busybox sleep 10000")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            row = "#containers-containers tr[data-row-name='0-test-health']"
+            b.wait_visible(row)
+
+            # the container becomes healthy shortly after starting
+            b.wait_in_text(row, "Healthy")
+
+            # the Health check tab is offered in the expanded row
+            b.click(row + " .pf-v6-c-table__toggle button")
+            b.wait_visible("#containers-containers .pf-v6-c-tabs__item button:contains('Health check')")
+        finally:
+            m.execute("docker rm -f test-health")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_not_present(".container-name")
+
+    def testContainerPrune(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cockpit-docker")
+        try:
+            m.execute("docker run --name test-prune-a busybox true")
+            m.execute("docker run --name test-prune-b busybox true")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_visible("#containers-containers tr[data-row-name='0-test-prune-a']")
+
+            # prune the stopped containers from the card header menu
+            b.click("#containers-actions-dropdown")
+            b.click("#prune-unused-containers-button")
+            b.wait_visible(".pf-v6-c-modal-box")
+            b.wait_in_text(".pf-v6-c-modal-box", "Prune unused containers")
+            b.click("#btn-img-delete")
+            b.wait_not_present(".pf-v6-c-modal-box")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_not_present("#containers-containers tr[data-row-name='0-test-prune-a']")
+            b.wait_not_present("#containers-containers tr[data-row-name='0-test-prune-b']")
+        finally:
+            m.execute("docker rm -f test-prune-a test-prune-b")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_not_present(".container-name")
+
     def testImageCreateRun(self):
         b = self.browser
         m = self.machine
@@ -405,6 +484,53 @@ EOF''')
         # cancel without creating anything
         b.click(".btn-cancel")
         b.wait_not_present(".pf-v6-c-modal-box")
+
+    def testImageDeleteTag(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cockpit-docker")
+        try:
+            # add an extra tag to the pre-pulled busybox image
+            m.execute("docker tag busybox test-extra:latest")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.click("#containers-images .pf-v6-c-expandable-section__toggle button")
+            row = "#containers-images tr[data-row-name='0-busybox:latest']"
+            b.wait_visible(row)
+
+            # the delete dialog lists every tag of the image
+            b.click(row + " .pf-v6-c-menu-toggle")
+            b.click(".pf-v6-c-menu__item:contains('Delete')")
+            b.wait_visible(".pf-v6-c-modal-box")
+            b.wait_in_text(".pf-v6-c-modal-box", "Multiple tags exist for this image")
+            b.wait_visible("#delete-busybox\\:latest")
+            b.wait_visible("#delete-test-extra\\:latest")
+
+            # remove only the extra tag, keeping busybox:latest
+            b.click("#delete-busybox\\:latest")
+            b.click("#delete-test-extra\\:latest")
+            b.click("#btn-img-delete")
+            b.wait_not_present(".pf-v6-c-modal-box")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.click("#containers-images .pf-v6-c-expandable-section__toggle button")
+            b.wait_visible("#containers-images tr[data-row-name='0-busybox:latest']")
+
+            # reopening the delete dialog now shows a single tag
+            b.click("#containers-images tr[data-row-name='0-busybox:latest'] .pf-v6-c-menu-toggle")
+            b.click(".pf-v6-c-menu__item:contains('Delete')")
+            b.wait_visible(".pf-v6-c-modal-box")
+            b.wait_not_in_text(".pf-v6-c-modal-box", "Multiple tags exist for this image")
+            b.wait_in_text(".pf-v6-c-modal-box", "busybox:latest")
+            b.click(".pf-v6-c-modal-box__footer button:contains('Cancel')")
+            b.wait_not_present(".pf-v6-c-modal-box")
+        finally:
+            # make sure the extra tag is gone and busybox stays around
+            m.execute("docker rmi test-extra:latest || true")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_visible("#containers-images")
 
 
 # This test gets its own fresh VM (not @nondestructive) because it makes

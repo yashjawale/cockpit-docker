@@ -28,7 +28,8 @@
 /node_modules/
 /runtime-npm-modules.txt
 /tmp/
-/tools/
+/tools/*
+!/tools/sign-release.sh
 
 # subdirs (/subdir/...)
 /packaging/arch/PKGBUILD

@@ -1,0 +1,54 @@
+# Build a Debian package and attach it to the GitHub release of the current
+# version tag. Enable the companion release.yml workflow to also attach the
+# source tarball to the same release.
+name: Debian package
+on:
+  push:
+    tags:
+      # this is a glob, not a regexp
+      - '[0-9]*'
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      # create GitHub release / upload assets
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y make gettext debhelper dpkg-dev nodejs npm xz-utils
+
+      # https://github.blog/2022-04-12-git-security-vulnerability-announced/
+      - name: Pacify git's permission check
+        run: git config --global --add safe.directory /__w/
+
+      - name: Workaround for https://github.com/actions/checkout/pull/697
+        run: |
+          TAG_VERSION="$(git describe --tags)"
+          git fetch --force origin ${TAG_VERSION}:refs/tags/${TAG_VERSION}
+
+      - name: Build release tarball
+        run: make dist
+
+      - name: Build Debian package
+        run: |
+          tar -xf cockpit-docker-*.tar.xz
+          cd cockpit-docker-*
+          dpkg-buildpackage -b -us -uc
+
+      - name: Attach package to the release
+        run: |
+          set -x
+          TAG_VERSION="$(git describe --tags)"
+          # upload to the release if it exists, otherwise create it
+          gh release upload "${TAG_VERSION}" ./*.deb --clobber 2>/dev/null || \
+            gh release create --title "${TAG_VERSION}" "${TAG_VERSION}" ./*.deb

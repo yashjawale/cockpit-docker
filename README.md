@@ -30,10 +30,27 @@ make
 
 `make install` compiles and installs the package in `/usr/local/share/cockpit/`. The
 convenience targets `srpm` and `rpm` build the source and binary rpms,
-respectively. Both of these make use of the `dist` target, which is used
+respectively, and `deb` builds a Debian binary package (requires `dpkg-buildpackage`).
+All of these make use of the `dist` target, which is used
 to generate the distribution tarball. In `production` mode, source files are
 automatically minified and compressed. Set `NODE_ENV=production` if you want to
 duplicate this behavior.
+
+# Packaging
+
+The project ships packaging metadata for several distributions:
+
+- RPM: `cockpit-docker.spec` (generated from
+  `packaging/cockpit-docker.spec.in`), built with `make srpm` / `make rpm` and
+  published through [Packit](./packit.yaml).
+- Arch Linux: `packaging/arch/PKGBUILD.in`.
+- Debian/Ubuntu: `packaging/debian/`, assembled into a `debian/` directory in
+  the release tarball at `make dist` time. The release tarball ships the
+  pre-built `dist/` bundle, so `dpkg-buildpackage -b -us -uc` can be run
+  directly from the extracted tarball without a node toolchain. Use
+  `make deb` to build a `.deb` locally, or the
+  [Debian package](./.github/workflows/debian-package.yml) workflow to build
+  and attach it to a GitHub release.
 
 For development, you usually want to run your module straight out of the git
 tree. To do that, run `make devel-install`, which links your checkout to the

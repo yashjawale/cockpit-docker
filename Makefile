@@ -22,7 +22,8 @@ DIST_TEST=runtime-npm-modules.txt
 # one example file in pkg/lib to check if it was already checked out
 COCKPIT_REPO_STAMP=pkg/lib/cockpit-po-plugin.js
 # common arguments for tar, mostly to make the generated tarballs reproducible
-TAR_ARGS = --sort=name --mtime "@$(shell git show --no-patch --format='%at')" --mode=go=rX,u+rw,a-s --numeric-owner --owner=0 --group=0
+# u+rwX keeps the execute bit of files that already have one (e.g. debian/rules)
+TAR_ARGS = --sort=name --mtime "@$(shell git show --no-patch --format='%at')" --mode=go=rX,u+rwX,a-s --numeric-owner --owner=0 --group=0
 
 all: $(DIST_TEST)
 
@@ -88,6 +89,22 @@ $(SPEC): packaging/$(SPEC).in $(DIST_TEST)
 packaging/arch/PKGBUILD: packaging/arch/PKGBUILD.in
 	sed 's/VERSION/$(VERSION)/; s/SOURCE/$(TARFILE)/' $< > $@
 
+# Debian packaging: assemble the debian/ directory from packaging/debian/ at
+# dist time, baking the current version into the changelog like for the RPM
+# spec. The release tarball therefore carries a ready-to-build Debian source
+# tree (dpkg-buildpackage can be run straight from the extracted tarball).
+DEB_DIR=debian
+
+$(DEB_DIR)/changelog: packaging/debian/changelog.in
+	mkdir -p $(DEB_DIR)
+	sed 's/%{VERSION}/$(VERSION)/; s/%{DATE}/$(shell date -R)/' $< > $@
+
+$(DEB_DIR)/rules: packaging/debian/rules packaging/debian/control packaging/debian/copyright packaging/debian/source/format $(DEB_DIR)/changelog
+	mkdir -p $(DEB_DIR)/source
+	cp packaging/debian/control packaging/debian/rules packaging/debian/copyright $(DEB_DIR)/
+	cp packaging/debian/source/format $(DEB_DIR)/source/format
+	chmod +x $(DEB_DIR)/rules
+
 $(DIST_TEST): $(NODE_MODULES_TEST) $(COCKPIT_REPO_STAMP) $(shell find src/ -type f) package.json build.js
 	NODE_ENV=$(NODE_ENV) ./build.js
 
@@ -97,6 +114,7 @@ watch: $(NODE_MODULES_TEST) $(COCKPIT_REPO_STAMP)
 clean:
 	rm -rf dist/
 	rm -f $(SPEC) packaging/arch/PKGBUILD
+	rm -rf $(DEB_DIR) deb-build
 	rm -f po/LINGUAS
 	rm -f metafile.json runtime-npm-modules.txt
 
@@ -129,12 +147,12 @@ dist: $(TARFILE)
 # pre-built dist/ (so it's not necessary) and ship package-lock.json (so that
 # node_modules/ can be reconstructed if necessary)
 $(TARFILE): export NODE_ENV=production
-$(TARFILE): $(DIST_TEST) $(SPEC) packaging/arch/PKGBUILD
+$(TARFILE): $(DIST_TEST) $(SPEC) packaging/arch/PKGBUILD $(DEB_DIR)/rules
 	if type appstream-util >/dev/null 2>&1; then appstream-util validate-relax --nonet *.metainfo.xml; fi
 	tar --xz $(TAR_ARGS) -cf $(TARFILE) --transform 's,^,$(RPM_NAME)/,' \
 		--exclude packaging/$(SPEC).in --exclude node_modules \
 		$$(git ls-files) $(COCKPIT_REPO_FILES) $(NODE_MODULES_TEST) $(DIST_TEST) \
-		$(SPEC) packaging/arch/PKGBUILD dist/
+		$(SPEC) packaging/arch/PKGBUILD $(DEB_DIR) dist/
 
 $(NODE_CACHE): $(NODE_MODULES_TEST)
 	tools/node-modules runtime-tar $(NODE_CACHE)
@@ -163,6 +181,16 @@ rpm: $(TARFILE) $(NODE_CACHE) $(SPEC)
 	find `pwd`/output -name '*.rpm' -printf '%f\n' -exec mv {} . \;
 	rm -r "`pwd`/rpmbuild"
 	rm -r "`pwd`/output" "`pwd`/build"
+
+# convenience target for developers: build a Debian binary package from the
+# dist tarball; requires dpkg-buildpackage (debhelper, gettext) on the host
+deb: $(TARFILE)
+	rm -rf deb-build
+	mkdir deb-build
+	tar -xf $(TARFILE) -C deb-build
+	cd deb-build/$(RPM_NAME) && dpkg-buildpackage -b -us -uc
+	find deb-build -maxdepth 1 -name '*.deb' -exec mv {} . \;
+	rm -rf deb-build
 
 # build a VM with locally built distro pkgs installed
 # the VM image needs the network to install docker from its upstream repo
@@ -203,4 +231,4 @@ $(NODE_MODULES_TEST): package.json
 	for _ in `seq 3`; do timeout 10m env -u NODE_ENV npm install --ignore-scripts && exit 0; done; exit 1
 	env -u NODE_ENV npm prune
 
-.PHONY: all clean install devel-install devel-uninstall print-version dist node-cache rpm prepare-check check vm print-vm
+.PHONY: all clean install devel-install devel-uninstall print-version dist node-cache rpm deb prepare-check check vm print-vm

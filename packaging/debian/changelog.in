@@ -1,0 +1,5 @@
+cockpit-docker (%{VERSION}) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Yash Jawale <yash25.j@gmail.com>  %{DATE}

@@ -19,6 +19,8 @@
 /cockpit-*.spec
 /cockpit-*.tar.xz
 /cockpit-navigator.spec
+/deb-build/
+/debian/
 /dist/
 /metafile.json
 /package-lock.json
@@ -30,7 +32,6 @@
 
 # subdirs (/subdir/...)
 /packaging/arch/PKGBUILD
-/packaging/debian/changelog
 /po/*.pot
 /po/LINGUAS
 /test/common/

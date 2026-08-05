@@ -14,39 +14,61 @@ import testlib
 class TestApplication(testlib.MachineCase):
     def testBasic(self):
         b = self.browser
+
+        self.login_and_go("/cockpit-docker")
+
+        # both main listing cards are shown
+        b.wait_in_text("#containers-containers .pf-v6-c-card__title", "Containers")
+        b.wait_in_text("#containers-images .pf-v6-c-card__title", "Images")
+
+        # no containers have been created yet
+        b.wait_in_text("#containers-containers .pf-v6-c-empty-state", "No containers")
+
+        # the image listing is collapsed by default; expand it
+        b.click("#containers-images .pf-v6-c-expandable-section__toggle button")
+        # the busybox image is pre-pulled into the test VM
+        b.wait_in_text("#containers-images .image-name", "busybox")
+
+    def testContainers(self):
+        b = self.browser
         m = self.machine
 
         self.login_and_go("/cockpit-docker")
-        # verify expected heading
-        b.wait_text(".pf-v6-c-card__title", "Cockpit Docker")
+        b.click("#containers-images .pf-v6-c-expandable-section__toggle button")
+        b.wait_in_text("#containers-images .image-name", "busybox")
 
-        # verify expected host name
-        hostname = m.execute("cat /etc/hostname").strip()
-        b.wait_in_text(".pf-v6-c-alert__title", "Running on " + hostname)
+        try:
+            # start a container on the machine; it should show up in the UI
+            m.execute("docker run -d --name test-cockpit-docker busybox sleep 10000")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_in_text(".container-name", "test-cockpit-docker")
+            b.wait_visible("tr[data-row-name='0-test-cockpit-docker']")
+        finally:
+            # clean up so the shared machine stays in a pristine state
+            m.execute("docker rm -f test-cockpit-docker")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_not_present(".container-name")
 
-        # change current hostname
-        self.write_file("/etc/hostname", "new-" + hostname)
-        # verify new hostname name
-        b.wait_in_text(".pf-v6-c-alert__title", "Running on new-" + hostname)
 
-        # change language to German
-        b.switch_to_top()
-        # the menu and dialog changed several times
-        b.click("#toggle-menu")
-        b.click("button.display-language-menu")
-        b.wait_popup('display-language-modal')
-        b.click("#display-language-modal [data-value='de-de'] button")
-        b.click("#display-language-modal button.pf-m-primary")
-        b.wait_visible("#content")
-        # menu label (from manifest) should be translated
-        b.wait_text("#host-apps a[href='/cockpit-docker']", "Bausatz")
-        # window title should be translated; this is not considered as "visible"
-        self.assertIn("Bausatz", b.call_js_func("ph_text", "head title"))
+# This test gets its own fresh VM (not @nondestructive) because it makes
+# permanent changes: it hides the docker CLI and stops the docker daemon.
+class TestDockerNotInstalled(testlib.MachineCase):
+    def testDockerNotInstalled(self):
+        b = self.browser
+        m = self.machine
 
-        b.go("/cockpit-docker")
-        b.enter_page("/cockpit-docker")
-        # page label (from js) should be translated
-        b.wait_in_text(".pf-v6-c-alert__title", "Läuft auf")
+        # simulate a system without docker: no daemon and no docker CLI
+        m.execute("systemctl mask docker docker.socket")
+        m.execute("systemctl stop docker docker.socket")
+        m.execute("mv /usr/bin/docker /usr/bin/docker.example")
+
+        self.login_and_go("/cockpit-docker")
+
+        b.wait_in_text(".pf-v6-c-empty-state__title", "Docker is not installed")
+        b.wait_in_text(".pf-v6-c-empty-state__body", "Docker is not installed on this system.")
+        b.wait_in_text(".pf-v6-c-empty-state__body", "See Docker installation instructions")
 
 
 if __name__ == '__main__':

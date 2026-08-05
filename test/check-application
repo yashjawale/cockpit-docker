@@ -131,6 +131,109 @@ class TestApplication(testlib.MachineCase):
             b.enter_page("/cockpit-docker")
             b.wait_not_present(".container-name")
 
+    def testCreateStackDialog(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cockpit-docker")
+        try:
+            # opening the create-stack dialog from the containers toolbar
+            b.click("#containers-containers-create-stack-btn")
+            b.wait_visible(".pf-v6-c-modal-box")
+            b.wait_text(".pf-v6-c-modal-box__title", "Create stack")
+            b.wait_visible("#create-stack-dialog-name")
+
+            # the project name is required and must not contain spaces
+            b.set_input_text("#create-stack-dialog-name", "")
+            b.wait_in_text(".pf-v6-c-modal-box", "Project name is required.")
+            b.set_input_text("#create-stack-dialog-name", "has space")
+            b.wait_in_text(".pf-v6-c-modal-box", "Invalid characters")
+
+            # a valid name clears the error and saves the stack files, which
+            # show up in the inactive stacks section
+            b.set_input_text("#create-stack-dialog-name", "test-ui-stack")
+            b.wait_not_in_text(".pf-v6-c-modal-box", "Invalid characters")
+            b.click("#create-stack-dialog-create-btn")
+            b.wait_not_present(".pf-v6-c-modal-box")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_in_text(".container-inactive-stacks", "test-ui-stack")
+            b.wait_visible("tr[data-row-name='test-ui-stack']")
+        finally:
+            # remove the stack directory created by the dialog
+            m.execute("rm -rf /var/lib/cockpit-docker/stacks/test-ui-stack")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_not_present(".container-inactive-stacks")
+
+    def testStackLifecycle(self):
+        b = self.browser
+        m = self.machine
+
+        # create the stack's compose files under the plugin's stack directory
+        m.execute('''mkdir -p /var/lib/cockpit-docker/stacks/test-stack
+cat > /var/lib/cockpit-docker/stacks/test-stack/docker-compose.yml <<'EOF'
+services:
+  web:
+    image: busybox
+    command: ["sleep", "3600"]
+EOF''')
+
+        self.login_and_go("/cockpit-docker")
+        b.reload()
+        b.enter_page("/cockpit-docker")
+        try:
+            # the not-yet-started stack is listed under inactive stacks
+            b.wait_in_text(".container-inactive-stacks", "test-stack")
+            b.wait_visible("tr[data-row-name='test-stack']")
+
+            # its edit dialog is prefilled with the stack name
+            b.click("#inactive-stack-actions-test-stack")
+            b.click(".pf-v6-c-menu__item:contains('Edit')")
+            b.wait_visible(".pf-v6-c-modal-box")
+            b.wait_text(".pf-v6-c-modal-box__title", "Edit stack test-stack")
+            b.click(".btn-cancel")
+            b.wait_not_present(".pf-v6-c-modal-box")
+
+            # starting the stack brings its container into the listing
+            b.click("#inactive-stack-start-test-stack")
+            b.wait_visible("#table-test-stack")
+            b.wait_in_text("#table-test-stack .stack-name", "test-stack")
+            b.wait_in_text("#table-test-stack .ct-badge-stack-running", "Running")
+            b.wait_visible("#table-test-stack tr[data-row-name='0-test-stack-web-1']")
+
+            # stopping the stack marks it stopped, but keeps its containers
+            b.click("#stack-actions-dropdown-test-stack-web-1")
+            b.click(".pf-v6-c-menu__item.stack-action-stop")
+            b.wait_in_text("#table-test-stack .ct-badge-stack-stopped", "Stopped")
+            b.wait_visible("#table-test-stack tr[data-row-name='0-test-stack-web-1']")
+
+            # ... and starting it again returns it to running
+            b.click("#stack-actions-dropdown-test-stack-web-1")
+            b.click(".pf-v6-c-menu__item.stack-action-start")
+            b.wait_in_text("#table-test-stack .ct-badge-stack-running", "Running")
+
+            # removing the stack deletes the containers but keeps the files,
+            # so it moves back to the inactive stacks section
+            b.click("#stack-actions-dropdown-test-stack-web-1")
+            b.click(".pf-v6-c-menu__item.stack-action-remove")
+            b.wait_visible(".pf-v6-c-modal-box")
+            b.wait_in_text(".pf-v6-c-modal-box", "Remove stack?")
+            b.click(".pf-v6-c-modal-box__footer button:contains('Remove')")
+            b.wait_not_present(".pf-v6-c-modal-box")
+            # the containers are force-deleted, their removal cascades through
+            # the event stream; reload for a deterministic listing
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_in_text(".container-inactive-stacks", "test-stack")
+        finally:
+            # bring down any leftover containers and remove the stack files
+            m.execute("cd /var/lib/cockpit-docker/stacks/test-stack && docker compose down --remove-orphans >/dev/null 2>&1 || true")
+            m.execute("rm -rf /var/lib/cockpit-docker/stacks/test-stack")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_not_present(".container-inactive-stacks")
+
     def testImages(self):
         b = self.browser
 

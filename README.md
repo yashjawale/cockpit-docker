@@ -42,7 +42,9 @@ The project ships packaging metadata for several distributions:
 
 - RPM: `cockpit-docker.spec` (generated from
   `packaging/cockpit-docker.spec.in`), built with `make srpm` / `make rpm` and
-  published through [Packit](./packit.yaml).
+  published through [Packit](./packit.yaml). The
+  [release](./.github/workflows/release.yml) workflow also builds an RPM from
+  the release tarball on CentOS Stream and attaches it to every GitHub release.
 - Arch Linux: `packaging/arch/PKGBUILD.in`.
 - Debian/Ubuntu: `packaging/debian/`, assembled into a `debian/` directory in
   the release tarball at `make dist` time. The release tarball ships the
@@ -183,8 +185,14 @@ changes:
 
 Pushing the release tag triggers the [release.yml](.github/workflows/release.yml)
 [GitHub action](https://github.com/features/actions) workflow. This creates the
-official release tarball, builds and attaches a Debian package, and publishes
-them as upstream release to GitHub.
+official release tarball, builds and attaches Debian and RPM packages, and
+publishes them as upstream release to GitHub.
+
+You can test the release builds without publishing anything by triggering the
+workflow manually from the Actions tab (select the `release` workflow, "Run
+workflow", keep the "Dry run" input enabled). This builds the same tarball,
+`.deb`, and `.rpm`, uploads them to the workflow run as artifacts for
+inspection, but does not create a GitHub release.
 
 The Fedora and COPR releases are done with [Packit](https://packit.dev/),
 see the [packit.yaml](./packit.yaml) control file.

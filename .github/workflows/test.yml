@@ -1,0 +1,45 @@
+# Run the integration test suite on pull requests and pushes to main.
+# This replaces the former .cirrus.yml: Cirrus CI shut down in June 2026.
+name: tests
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  # allow manual runs from https://github.com/yashjawale/cockpit-docker/actions
+  workflow_dispatch:
+# cancel superseded runs on the same branch/pull request
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    container:
+      # official cockpit CI container, with cockpit related build and test dependencies
+      image: ghcr.io/cockpit-project/tasks
+      options: --user root
+    strategy:
+      fail-fast: false
+      matrix:
+        TEST_OS: [fedora-44, debian-trixie]
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # https://github.blog/2022-04-12-git-security-vulnerability-announced/
+      - name: Pacify git's permission check
+        run: git config --global --add safe.directory /__w/cockpit-docker/cockpit-docker
+
+      - name: Fix KVM permissions
+        run: chmod 666 /dev/kvm 2>/dev/null || true
+
+      # test PO template generation
+      - name: Generate PO templates
+        run: make po/cockpit-docker.pot
+
+      # chromium has too little /dev/shm, and we can't make that bigger
+      - name: Run integration tests
+        run: TEST_BROWSER=firefox TEST_JOBS=$(nproc) TEST_OS=$TEST_OS make check

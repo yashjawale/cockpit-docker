@@ -139,28 +139,23 @@ After the test VM is prepared, you can manually run the test without rebuilding
 the VM, possibly with extra options for tracing and halting on test failures
 (for interactive debugging):
 
-    TEST_OS=centos-9-stream test/check-application -tvs
+    TEST_OS=fedora-44 test/check-application -tvs
 
 It is possible to setup the test environment without running the tests:
 
-    TEST_OS=centos-9-stream make prepare-check
+    TEST_OS=fedora-44 make prepare-check
 
 You can also run the test against a different Cockpit image, for example:
 
-    TEST_OS=fedora-40 make check
+    TEST_OS=debian-trixie make check
 
 # Running tests in CI
 
-These tests can be run in [Cirrus CI](https://cirrus-ci.org/), on their free
-[Linux Containers](https://cirrus-ci.org/guide/linux/) environment which
-explicitly supports `/dev/kvm`. Please see [Quick
-Start](https://cirrus-ci.org/guide/quick-start/) how to set up Cirrus CI for
-your project after forking from cockpit-docker.
-
-The included [.cirrus.yml](./.cirrus.yml) runs the integration tests for two
-operating systems (Fedora and CentOS 8). Note that if/once your project grows
-bigger, or gets frequent changes, you may need to move to a paid account, or
-different infrastructure with more capacity.
+The included [test.yml](.github/workflows/test.yml) runs the integration tests
+in [GitHub Actions](https://github.com/features/actions) for two operating
+systems (Fedora and CentOS Stream), using the official Cockpit CI container
+with KVM support. It replaces the former `.cirrus.yml`, as Cirrus CI shut down
+in June 2026.
 
 Tests also run in [Packit](https://packit.dev/) for all currently supported
 Fedora releases; see the [packit.yaml](./packit.yaml) control file. You need to

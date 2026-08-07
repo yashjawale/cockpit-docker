@@ -46,7 +46,7 @@ jobs:
 
       # https://github.blog/2022-04-12-git-security-vulnerability-announced/
       - name: Pacify git's permission check
-        run: git config --global --add safe.directory /__w/
+        run: git config --global --add safe.directory /__w/cockpit-docker/cockpit-docker
 
       - name: Workaround for https://github.com/actions/checkout/pull/697
         if: env.DRY_RUN != 'true'

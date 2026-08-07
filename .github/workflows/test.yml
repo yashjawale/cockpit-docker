@@ -45,7 +45,7 @@ jobs:
       # management cannot work without systemd. QEMU also needs virtlogd.
       - name: Start libvirt daemons
         run: |
-          printf 'security_driver = "none"\ncgroup_controllers = [ ]\n' > /etc/libvirt/qemu.conf
+          printf 'security_driver = "none"\ncgroup_controllers = [ ]\nuser = "root"\ngroup = "root"\n' > /etc/libvirt/qemu.conf
           virtqemud -d
           virtlogd -d
           for i in $(seq 30); do

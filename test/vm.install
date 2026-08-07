@@ -15,22 +15,26 @@ systemctl enable cockpit.socket
 # Install the Docker Engine so the plugin's container workflow can be tested.
 # The test VM needs the network for this (the Makefile VM_IMAGE target must not
 # pass --no-network).
-if [ -e /etc/debian_version ]; then
-    apt-get update
-    apt-get install -y apt-transport-https ca-certificates curl gnupg
-    install -m 0755 -d /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
-    chmod a+r /etc/apt/keyrings/docker.asc
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release; echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list
-    apt-get update
-    apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-else
-    dnf -y install dnf-plugins-core
-    curl -fsSL https://download.docker.com/linux/centos/docker-ce.repo -o /etc/yum.repos.d/docker-ce.repo
-    # CentOS Stream reports $releasever as "9stream", but Docker only publishes "9"
-    sed -i 's@$releasever@9@g' /etc/yum.repos.d/docker-ce.repo
-    dnf -y --setopt=allow_erasing=1 install docker-ce docker-ce-cli containerd.io docker-compose-plugin
-fi
+. /etc/os-release
+case "$ID" in
+    debian|ubuntu)
+        apt-get update
+        apt-get install -y apt-transport-https ca-certificates curl gnupg
+        install -m 0755 -d /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+        chmod a+r /etc/apt/keyrings/docker.asc
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list
+        apt-get update
+        apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+        ;;
+    *)
+        dnf -y install dnf-plugins-core
+        curl -fsSL https://download.docker.com/linux/centos/docker-ce.repo -o /etc/yum.repos.d/docker-ce.repo
+        # CentOS Stream reports $releasever as "9stream", but Docker only publishes "9"
+        sed -i 's@$releasever@9@g' /etc/yum.repos.d/docker-ce.repo
+        dnf -y install docker-ce docker-ce-cli containerd.io docker-compose-plugin
+        ;;
+esac
 systemctl enable --now docker
 
 # Pre-pull a small image so the tests don't need network at run time.

@@ -18,11 +18,11 @@
     "stylelint:fix": "stylelint --fix src/*.{css,scss}"
   },
   "devDependencies": {
-    "@types/node": "^20.19.43",
+    "@types/node": "^26.1.2",
     "@types/react": "18.3.13",
     "@types/react-dom": "18.3.1",
     "@types/throttle-debounce": "5.0.2",
-    "@typescript-eslint/eslint-plugin": "8.63.0",
+    "@typescript-eslint/eslint-plugin": "8.66.0",
     "esbuild-wasm": "0.28.1",
     "eslint": "8.57.1",
     "eslint-config-standard": "17.1.0",
@@ -39,7 +39,7 @@
     "stylelint-config-standard": "40.0.0",
     "stylelint-config-standard-scss": "17.0.0",
     "stylelint-formatter-pretty": "4.0.1",
-    "typescript": "6.0.3"
+    "typescript": "7.0.2"
   },
   "dependencies": {
     "@patternfly/patternfly": "^6.6.0",

@@ -110,8 +110,8 @@ jobs:
 
       - name: Build Debian package
         run: |
-          tar -xf cockpit-docker-*.tar.xz
-          cd cockpit-docker-*
+          tar -xf cockpit-docker-[0-9]*.tar.xz
+          cd cockpit-docker
           dpkg-buildpackage -b -us -uc
           mv ../*.deb .
 
@@ -161,7 +161,7 @@ jobs:
         run: |
           mkdir -p ~/rpmbuild/SOURCES ~/rpmbuild/SPECS
           cp *.tar.xz ~/rpmbuild/SOURCES/
-          tar -xf cockpit-docker-*.tar.xz cockpit-docker/cockpit-docker.spec
+          tar -xf cockpit-docker-[0-9]*.tar.xz cockpit-docker/cockpit-docker.spec
           cp cockpit-docker/cockpit-docker.spec ~/rpmbuild/SPECS/
           cd ~/rpmbuild
           rpmbuild -bb SPECS/cockpit-docker.spec

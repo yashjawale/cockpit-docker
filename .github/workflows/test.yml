@@ -18,7 +18,7 @@ jobs:
     container:
       # official cockpit CI container, with cockpit related build and test dependencies
       image: ghcr.io/cockpit-project/tasks
-      options: --user root
+      options: --user root --device /dev/kvm
     strategy:
       fail-fast: false
       matrix:
@@ -36,14 +36,15 @@ jobs:
       - name: Fix KVM permissions
         run: chmod 666 /dev/kvm 2>/dev/null || true
 
-      # the test VMs are managed via socket activation of libvirt's session daemon
-      # (bots connect to qemu:///session); the container has no systemd, so start
-      # it manually. As root the daemon listens on /run/libvirt/virtqemud-sock.
-      - name: Start libvirt session daemon
+      # the test VMs are managed via libvirt (bots connect to qemu:///session);
+      # the container has no systemd, so start the daemons manually. As root
+      # they listen on /run/libvirt/*-sock. QEMU also needs virtlogd for logging.
+      - name: Start libvirt daemons
         run: |
           virtqemud -d
+          virtlogd -d
           for i in $(seq 30); do
-            [ -e /run/libvirt/virtqemud-sock ] && break
+            [ -e /run/libvirt/virtqemud-sock ] && [ -e /run/libvirt/virtlogd-sock ] && break
             sleep 1
           done
           virsh -c qemu:///session list 2>&1 || true

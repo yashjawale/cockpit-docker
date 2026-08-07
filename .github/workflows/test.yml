@@ -18,7 +18,8 @@ jobs:
     container:
       # official cockpit CI container, with cockpit related build and test dependencies
       image: ghcr.io/cockpit-project/tasks
-      options: --user root --device /dev/kvm
+      # privileged so that libvirt can run VMs with KVM inside the container
+      options: --user root --privileged --device /dev/kvm
     strategy:
       fail-fast: false
       matrix:

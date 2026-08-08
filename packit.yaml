@@ -31,6 +31,12 @@ jobs:
       - centos-stream-9-aarch64
       - centos-stream-10
 
+  # run the same tests when a PR gets merged to main
+  - job: tests
+    trigger: commit
+    branch: "^main$"
+    targets: *test_targets
+
   - job: copr_build
     trigger: pull_request
     targets: *test_targets

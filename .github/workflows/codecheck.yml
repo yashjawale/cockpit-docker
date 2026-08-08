@@ -1,0 +1,33 @@
+# Run static code checks (eslint, stylelint, typecheck, mypy, ruff, vulture, ...)
+# via `make codecheck` on pull requests and pushes to main.
+name: codecheck
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  # allow manual runs from https://github.com/yashjawale/cockpit-docker/actions
+  workflow_dispatch:
+# cancel superseded runs on the same branch/pull request
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  codecheck:
+    runs-on: ubuntu-latest
+    container:
+      # official cockpit CI container, with node, eslint, mypy, ruff, etc.
+      image: ghcr.io/cockpit-project/tasks
+      options: --user root
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # https://github.blog/2022-04-12-git-security-vulnerability-announced/
+      - name: Pacify git's permission check
+        run: git config --global --add safe.directory /__w/cockpit-docker/cockpit-docker
+
+      - name: Run static code checks
+        run: make codecheck

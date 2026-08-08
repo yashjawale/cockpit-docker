@@ -276,7 +276,8 @@ class TestApplication(testlib.MachineCase):
 
         self.login_and_go("/cockpit-docker")
         try:
-            m.execute("docker run -d --name test-integration -p 8080:80 -e FOO=bar -v /tmp/hostvol:/data busybox sleep 10000")
+            m.execute("docker run -d --name test-integration -p 8080:80 "
+                      "-e FOO=bar -v /tmp/hostvol:/data busybox sleep 10000")
             b.reload()
             b.enter_page("/cockpit-docker")
             row = "#containers-containers tr[data-row-name='0-test-integration']"
@@ -302,7 +303,8 @@ class TestApplication(testlib.MachineCase):
 
         self.login_and_go("/cockpit-docker")
         try:
-            m.execute("docker run -d --name test-health --health-cmd='true' --health-interval=1s --health-retries=3 --health-timeout=1s busybox sleep 10000")
+            m.execute("docker run -d --name test-health --health-cmd='true' "
+                      "--health-interval=1s --health-retries=3 --health-timeout=1s busybox sleep 10000")
             b.reload()
             b.enter_page("/cockpit-docker")
             row = "#containers-containers tr[data-row-name='0-test-health']"
@@ -473,7 +475,8 @@ EOF''')
             b.wait_in_text(".container-inactive-stacks", "test-stack")
         finally:
             # bring down any leftover containers and remove the stack files
-            m.execute("cd /var/lib/cockpit-docker/stacks/test-stack && docker compose down --remove-orphans >/dev/null 2>&1 || true")
+            m.execute("cd /var/lib/cockpit-docker/stacks/test-stack && "
+                      "docker compose down --remove-orphans >/dev/null 2>&1 || true")
             m.execute("rm -rf /var/lib/cockpit-docker/stacks/test-stack")
             b.reload()
             b.enter_page("/cockpit-docker")

@@ -46,6 +46,10 @@ updates:
       - dependency-name: "eslint"
         update-types: ["version-update:semver-major"]
 
+      # @typescript-eslint only supports typescript < 6.1; TS 7 is the new
+      # native compiler and is not supported by the eslint plugin yet
+      - dependency-name: "typescript"
+
   - package-ecosystem: "github-actions"
     directory: "/"
     open-pull-requests-limit: 3

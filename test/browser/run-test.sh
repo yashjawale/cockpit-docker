@@ -26,12 +26,14 @@ EXCLUDES=""
 echo "TEST_ALLOW_JOURNAL_MESSAGES: ${TEST_ALLOW_JOURNAL_MESSAGES:-}"
 echo "TEST_AUDIT_NO_SELINUX: ${TEST_AUDIT_NO_SELINUX:-}"
 
-GATEWAY="$(python3 -c 'import socket; print(socket.gethostbyname("_gateway"))')"
 RC=0
+# the tests run in the tasks container, which shares the host network (podman
+# --network=host), so the Cockpit test VM is reachable on localhost; use that
+# instead of the container gateway
 ./test/common/run-tests \
     --nondestructive \
-    --machine "${GATEWAY}":22 \
-    --browser "${GATEWAY}":9090 \
+    --machine localhost:22 \
+    --browser localhost:9090 \
     $EXCLUDES \
 || RC=$?
 

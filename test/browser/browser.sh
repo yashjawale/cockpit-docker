@@ -29,6 +29,7 @@ CONTAINER="$(cat .cockpit-ci/container)"
 exec podman \
     run \
         --rm \
+        --network=host \
         --shm-size=1024m \
         --security-opt=label=disable \
         --env='TEST_*' \

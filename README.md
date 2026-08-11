@@ -137,6 +137,11 @@ if you run into failures and don't want to adjust tests, consider checking out
 Cockpit's test/common from a tag instead of main (see the `test/common`
 target in `Makefile`).
 
+Chromium is the default test browser, but Firefox is often more reliable
+(lower memory usage and fewer OOM issues), so it is recommended:
+
+    TEST_BROWSER=firefox make check
+
 After the test VM is prepared, you can manually run the test without rebuilding
 the VM, possibly with extra options for tracing and halting on test failures
 (for interactive debugging):
@@ -153,14 +158,10 @@ You can also run the test against a different Cockpit image, for example:
 
 # Running tests in CI
 
-The included [test.yml](.github/workflows/test.yml) runs the integration tests
-in [GitHub Actions](https://github.com/features/actions) for two operating
-systems (Fedora and CentOS Stream), using the official Cockpit CI container
-with KVM support. It replaces the former `.cirrus.yml`, as Cirrus CI shut down
-in June 2026.
-
-Tests also run in [Packit](https://packit.dev/) for all currently supported
-Fedora releases; see the [packit.yaml](./packit.yaml) control file. You need to
+Integration tests run in [Packit](https://packit.dev/) on
+[Testing Farm](https://docs.testing-farm.io/) for all currently supported
+Fedora and CentOS Stream releases, on both pull requests and pushes to main;
+see the [packit.yaml](./packit.yaml) control file. You need to
 [enable Packit-as-a-service](https://packit.dev/docs/packit-service/) in your GitHub project to use this.
 To run the tests in the exact same way for upstream pull requests and for
 [Fedora package update gating](https://docs.fedoraproject.org/en-US/ci/), the
@@ -168,6 +169,14 @@ tests are wrapped in the [FMF metadata format](https://github.com/teemtee/fmf)
 for using with the [tmt test management tool](https://docs.fedoraproject.org/en-US/ci/tmt/).
 Note that Packit tests can *not* run their own virtual machine images, thus
 they only run [@nondestructive tests](https://github.com/cockpit-project/cockpit/blob/main/test/common/testlib.py).
+
+`make codecheck` (eslint, stylelint, mypy, ruff, vulture, TypeScript typecheck,
+...), the [release](./.github/workflows/release.yml) workflow, and dependency
+updates run in [GitHub Actions](https://github.com/features/actions).
+
+See [docs/ci.md](./docs/ci.md) for details on all CI systems, and
+[docs/packit-setup.md](./docs/packit-setup.md) for the Packit/Testing Farm
+setup.
 
 # Automated release
 

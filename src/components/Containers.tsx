@@ -21,7 +21,6 @@ import { KebabDropdown } from "cockpit-components-dropdown.jsx";
 import { useDialogs } from "dialogs.jsx";
 
 import cockpit from 'cockpit';
-import { EmptyStatePanel } from "cockpit-components-empty-state.tsx";
 import { ListingPanel } from 'cockpit-components-listing-panel';
 import { ListingTable } from "cockpit-components-table";
 
@@ -185,25 +184,6 @@ const InactiveStackActions = ({ project, uid, onAddNotification }: {
                 ]}
             />
         </Flex>
-    );
-};
-
-/**
- * Wrap a terminal tab renderer, showing a fallback when WebGL2 is unavailable.
- *
- * The WebGL renderer is required by xterm.js; without it the Logs and Console
- * tabs cannot display anything.
- */
-const ContainerTerminalWrapper = ({ webglAvailable, child, ...props }: {
-    webglAvailable: boolean,
-    child: React.ComponentType<Record<string, unknown>>,
-}) => {
-    const ChildComponent = child;
-
-    return (
-        webglAvailable
-            ? <ChildComponent {...props} />
-            : <EmptyStatePanel title={_("Terminal not available")} paragraph={_("This browser does not support WebGL2.")} />
     );
 };
 
@@ -484,11 +464,6 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
     // briefly highlight the changed row like a new row.
     const containerStatesRef = useRef<Record<string, string>>({});
 
-    // Check if WebGL2 is available; only checking if WebGL2RenderingContext is
-    // defined is not sufficient, in Firefox tests it is defined as WebGL is
-    // enabled but it is not available in headless mode.
-    const webglAvailable = !!document.createElement("canvas").getContext("webgl2");
-
     // Daemon owner that this session's stacks belong to: the system daemon as
     // long as it is reachable (root or an admin via escalation), otherwise the
     // session user's rootless daemon.
@@ -649,19 +624,17 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
             });
             tabs.push({
                 name: _("Logs"),
-                renderer: ContainerTerminalWrapper,
+                renderer: ContainerLogs,
                 data: {
                     containerId: container.Id,
                     containerStatus: container.State.Status,
                     width,
                     uid: container.uid,
-                    webglAvailable,
-                    child: ContainerLogs,
                 }
             });
             tabs.push({
                 name: _("Console"),
-                renderer: ContainerTerminalWrapper,
+                renderer: ContainerTerminal,
                 data: {
                     con: user.con,
                     containerId: container.Id,
@@ -669,8 +642,6 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
                     width,
                     uid: container.uid,
                     tty,
-                    webglAvailable,
-                    child: ContainerTerminal,
                 }
             });
         }

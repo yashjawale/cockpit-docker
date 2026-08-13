@@ -8,7 +8,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 
 import { ExclamationCircleIcon } from '@patternfly/react-icons';
-import { WebglAddon } from '@xterm/addon-webgl';
 import { Terminal } from "@xterm/xterm";
 
 import cockpit from 'cockpit';
@@ -149,10 +148,13 @@ const ContainerLogs = ({ containerId, containerStatus, width, uid }: ContainerLo
         if (streamerRef.current !== null)
             return;
 
-        // Show the terminal. Once it was shown, do not show it again but reuse the previous one
+        // Show the terminal. Once it was shown, do not show it again but reuse the previous one.
+        // The default DOM renderer is used instead of the WebGL addon: every
+        // terminal tab would otherwise need its own WebGL2 context, which the
+        // browsers only allow in limited numbers and revoke the oldest one of,
+        // leaving blank terminals.
         if (!openedRef.current) {
             view.open(logRef.current as HTMLDivElement);
-            view.loadAddon(new WebglAddon());
             openedRef.current = true;
         }
         resize(width);

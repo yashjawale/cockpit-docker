@@ -546,6 +546,10 @@ const Application = () => {
         case 'image':
             handleImageEvent(event, con);
             break;
+        case 'network':
+            // network connect/disconnect/create events do not change any
+            // containers or images we display, so no state update is needed
+            break;
         default:
             console.warn('Unhandled event type ', event.Type);
         }

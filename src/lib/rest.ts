@@ -30,10 +30,10 @@ function format_error(error: object, content: unknown): object {
             content_o.message = content;
         }
         return { ...error, ...content_o };
-    } else {
+    } else if (content !== undefined) {
         console.warn("format_error(): content is not a string:", content);
-        return error;
     }
+    return error;
 }
 
 // calls are async, so keep track of a call counter to associate a result with a call

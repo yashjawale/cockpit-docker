@@ -317,8 +317,12 @@ const Application = () => {
             }
         }).catch(ex => {
             console.warn("Stats stream of uid", con.uid, "container", id, "failed:", JSON.stringify(ex));
-            closeStatsStream(key);
-        });
+        })
+                .finally(() => {
+                    // the stream ended (daemon/container removed or socket closed);
+                    // drop the tracking entry so a later start event can reopen it
+                    closeStatsStream(key);
+                });
     };
 
     /**

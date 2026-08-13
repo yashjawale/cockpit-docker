@@ -60,8 +60,11 @@ export function dockerStatsToView(stats: ContainerStats): ContainerStatsView {
     const cpuDelta = (stats.cpu_stats?.cpu_usage?.total_usage ?? 0) - (stats.precpu_stats?.cpu_usage?.total_usage ?? 0);
     const systemDelta = (stats.cpu_stats?.system_cpu_usage ?? 0) - (stats.precpu_stats?.system_cpu_usage ?? 0);
     const onlineCpus = stats.cpu_stats?.online_cpus;
-    if (systemDelta > 0 && cpuDelta > 0 && onlineCpus) {
-        view.CPU = (cpuDelta / systemDelta) * onlineCpus * 100;
+    // An idle container consumes no CPU between two snapshots, so the delta is
+    // zero; report 0% instead of dropping the value (which would make the CPU
+    // column disappear once a container idles). Negative deltas are clamped.
+    if (systemDelta > 0 && onlineCpus) {
+        view.CPU = (Math.max(0, cpuDelta) / systemDelta) * onlineCpus * 100;
     }
 
     const memUsage = stats.memory_stats?.usage;

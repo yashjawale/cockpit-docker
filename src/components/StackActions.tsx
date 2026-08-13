@@ -198,8 +198,10 @@ export const StackActions = ({ con, containers, containersStats, onAddNotificati
             cpu += stats.CPU;
             hasStats = true;
         }
-        if (stats.MemUsage !== undefined)
+        if (stats.MemUsage !== undefined) {
             mem += stats.MemUsage;
+            hasStats = true;
+        }
     }
 
     /**

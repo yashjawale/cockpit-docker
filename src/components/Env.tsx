@@ -74,9 +74,12 @@ const handleEnvValue = (
     // Allow the input of KEY=VALUE separated value pairs for bulk import only if the other
     // field is not empty.
     if (value.includes('=') && !companionField) {
-        // split on any whitespace so that space- and newline-separated pairs
-        // (the helper text promises "one or more lines") both bulk-import
-        const parts = value.trim().split(/\s+/);
+        // split on newlines (the helper text promises "one or more lines") so
+        // that a value containing spaces stays intact instead of being split
+        // into several bogus rows
+        const parts = value.split(/\r?\n/)
+                .map(part => part.trim())
+                .filter(part => part.length > 0);
         let index = idx;
         for (const part of parts) {
             const [envKey, ...envVar] = part.split('=');

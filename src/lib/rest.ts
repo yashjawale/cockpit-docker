@@ -246,7 +246,13 @@ function connect(uid: Uid): Connection {
 
                         const line_str = decoder.decode(line);
                         debug(user_str, "monitor", path, "data:", line_str);
-                        callback(JSON.parse(line_str));
+                        try {
+                            callback(JSON.parse(line_str));
+                        } catch (ex) {
+                            // a truncated or otherwise malformed line must not
+                            // break the whole stream
+                            console.warn("monitor", path, "ignoring invalid JSON line:", ex);
+                        }
                     }
                 }
             };

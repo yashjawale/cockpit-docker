@@ -235,10 +235,11 @@ const ContainerActions = ({ con, container, onAddNotification, localImages }: Co
 
     /**
      * Delete the container, offering a force-remove confirmation when it is
-     * running.
+     * running or paused (docker refuses to remove paused containers without
+     * force).
      */
     const deleteContainer = () => {
-        if (container.State?.Status === "running") {
+        if (container.State?.Status === "running" || container.State?.Status === "paused") {
             const handleForceRemoveContainer = () => {
                 const id = container ? container.Id : "";
 
@@ -253,7 +254,7 @@ const ContainerActions = ({ con, container, onAddNotification, localImages }: Co
                         .then(() => undefined);
             };
 
-            Dialogs.show(<ForceRemoveModal name={container.Name} handleForceRemove={handleForceRemoveContainer} reason={_("Deleting a running container will erase all data in it.")} />);
+            Dialogs.show(<ForceRemoveModal name={container.Name} handleForceRemove={handleForceRemoveContainer} reason={_("Deleting this container will erase all data in it.")} />);
         } else {
             Dialogs.show(<ContainerDeleteModal con={con} containerWillDelete={container} onAddNotification={onAddNotification} />);
         }

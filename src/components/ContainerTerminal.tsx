@@ -123,7 +123,7 @@ const ContainerTerminal = ({ con, containerId, containerStatus, width, uid, tty 
         // xterm.js scrollbar 20
         const padding = 24 * 4 + 3 + 21 + 20;
         const realWidth = dimensions.css.cell.width;
-        const cols = Math.floor((newWidth - padding) / realWidth);
+        const cols = Math.max(1, Math.floor((newWidth - padding) / realWidth));
         term.resize(cols, 24);
         if (!connectedRef.current)
             return;

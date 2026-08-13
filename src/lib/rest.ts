@@ -218,6 +218,12 @@ function connect(uid: Uid): Connection {
                 } else {
                     // empty body should not happen, would be a docker bug
                     const body_text = body.length > 0 ? decoder.decode(body) : "(empty)";
+                    // the request failed, so the channel will never stream data;
+                    // close it and drop it so that it does not leak
+                    const chIndex = raw_channels.indexOf(ch);
+                    if (chIndex >= 0)
+                        raw_channels.splice(chIndex, 1);
+                    ch.close();
                     reject(format_error({ reason: headers.split('\r\n')[0] }, body_text));
                 }
             };

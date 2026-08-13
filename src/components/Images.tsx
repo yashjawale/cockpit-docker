@@ -329,11 +329,13 @@ const Images = ({ images, imageContainerList, onAddNotification, textFilter, own
             return images![a].uid === 0 ? 1 : -1;
         const name_a = images![a].RepoTags ? images![a].RepoTags[0] : "";
         const name_b = images![b].RepoTags ? images![b].RepoTags[0] : "";
+        if (name_a === name_b)
+            return 0;
         if (name_a === "")
             return 1;
         if (name_b === "")
             return -1;
-        return name_a > name_b ? 1 : -1;
+        return name_a.localeCompare(name_b);
     });
 
     const imageRows = filtered.map(id => renderRow(images![id])) as unknown as ListingTableRowProps[];
@@ -346,7 +348,7 @@ const Images = ({ images, imageContainerList, onAddNotification, textFilter, own
             const bitem = (b.columns[idx] as ImagesRowColumn).sortKey ?? (b.columns[idx] as ImagesRowColumn).title;
 
             if (isNumeric) {
-                return Number(bitem) - Number(aitem);
+                return Number(aitem) - Number(bitem);
             } else {
                 return String(aitem).localeCompare(String(bitem));
             }

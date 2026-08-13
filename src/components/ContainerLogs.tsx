@@ -80,6 +80,10 @@ const ContainerLogs = ({ containerId, containerStatus, width, uid }: ContainerLo
     const openedRef = useRef(false);
     const streamerRef = useRef<ReturnType<typeof rest.connect> | null>(null);
     const mountedRef = useRef(false);
+    // Bytes of a frame that did not arrive in one message; a single docker
+    // frame can straddle two channel messages, and the tail must be prepended
+    // to the next one instead of being misparsed as a new frame header.
+    const pendingRef = useRef<Uint8Array>(new Uint8Array());
 
     const resize = (newWidth: number) => {
         const dimensions = (view as unknown as XtermCore)._core._renderService?.dimensions;
@@ -91,7 +95,7 @@ const ContainerLogs = ({ containerId, containerStatus, width, uid }: ContainerLo
         // xterm.js scrollbar 20
         const padding = 24 * 4 + 3 + 21 + 20;
         const realWidth = dimensions.css.cell.width;
-        const cols = Math.floor((newWidth - padding) / realWidth);
+        const cols = Math.max(1, Math.floor((newWidth - padding) / realWidth));
         view.resize(cols, 24);
     };
 
@@ -104,9 +108,21 @@ const ContainerLogs = ({ containerId, containerStatus, width, uid }: ContainerLo
             }
             // First 8 bytes encode information about stream and frame
             // See 'Stream format' on https://docs.docker.com/engine/api/v1.41/#operation/ContainerAttach
+            if (pendingRef.current.byteLength > 0) {
+                const combined = new Uint8Array(pendingRef.current.byteLength + data.byteLength);
+                combined.set(pendingRef.current, 0);
+                combined.set(data, pendingRef.current.byteLength);
+                data = combined;
+                pendingRef.current = new Uint8Array();
+            }
             while (data.byteLength >= 8) {
                 // split into frames (size is the second 32-bit word)
                 const size = data[7] + data[6] * 0x100 + data[5] * 0x10000 + data[4] * 0x1000000;
+                // a frame that is not complete yet is kept for the next message
+                if (data.byteLength < 8 + size) {
+                    pendingRef.current = data;
+                    break;
+                }
                 const frame = data.slice(8, 8 + size);
                 // old docker versions just have CR endings, append NL then
                 if (frame[size - 1] === 13)
@@ -116,13 +132,16 @@ const ContainerLogs = ({ containerId, containerStatus, width, uid }: ContainerLo
                     view.write(frame);
                 data = data.slice(8 + size);
             }
+            // a trailing partial frame header is also kept for the next message
+            if (data.byteLength > 0 && data.byteLength < 8)
+                pendingRef.current = data;
         }
     };
 
     const onStreamClose = () => {
         if (mountedRef.current) {
             streamerRef.current = null;
-            view.write("Streaming disconnected");
+            view.write(_("Streaming disconnected"));
         }
     };
 

@@ -61,12 +61,22 @@ export const stackPublishedPorts = (containers: DockerContainer[]) => {
     return Object.keys(ports).length > 0 ? ports : undefined;
 };
 
+/** Localized labels of the stack status slugs */
+const stackStatusLabels: Record<string, string> = {
+    running: _("Running"),
+    paused: _("Paused"),
+    stopped: _("Stopped"),
+    degraded: _("Degraded"),
+};
+
 /**
- * Compute a single status string for the whole stack from the states of its
- * containers, mirroring how cockpit-podman shows a pod status.
+ * Compute an English status slug for the whole stack from the states of its
+ * containers, mirroring how cockpit-podman shows a pod status. The slug is
+ * used for both the badge CSS class and the localized label lookup, so it
+ * must not depend on the UI language.
  *
  * @param containers The containers of the stack
- * @returns A localized status like Running, Degraded or Stopped
+ * @returns An English status slug like "running" or "degraded"
  */
 const stackStatus = (containers: DockerContainer[]) => {
     if (containers.length === 0)
@@ -75,12 +85,12 @@ const stackStatus = (containers: DockerContainer[]) => {
     const running = statuses.filter(status => status === "running" || status === "restarting").length;
     const paused = statuses.filter(status => status === "paused").length;
     if (running === statuses.length)
-        return _("Running");
+        return "running";
     if (paused === statuses.length)
-        return _("Paused");
+        return "paused";
     if (running === 0)
-        return _("Stopped");
-    return _("Degraded");
+        return "stopped";
+    return "degraded";
 };
 
 /**
@@ -153,6 +163,7 @@ export const StackActions = ({ con, containers, containersStats, onAddNotificati
     const project = containers[0]?.Config?.Labels?.['com.docker.compose.project'];
     const ports = stackPublishedPorts(containers);
     const numPorts = Object.keys(ports ?? {}).length;
+    const status = stackStatus(containers);
     const [editAvailable, setEditAvailable] = useState(false);
     // The edit dialog reads the stack files; only offer it when they exist in
     // our own stacks directory (some stacks come from elsewhere, e.g. Docker
@@ -298,7 +309,7 @@ export const StackActions = ({ con, containers, containersStats, onAddNotificati
 
     return (
         <>
-            {containers.length > 0 && <Badge isRead className={`ct-badge-stack-${stackStatus(containers).toLowerCase()}`}>{stackStatus(containers)}</Badge>}
+            {containers.length > 0 && status && <Badge isRead className={`ct-badge-stack-${status}`}>{stackStatusLabels[status]}</Badge>}
             {hasStats &&
                 <>
                     <Flex className='pod-stat' spaceItems={{ default: 'spaceItemsSm' }}>

@@ -53,7 +53,9 @@ export const ImageDeleteModal = ({ con, imageWillDelete, onAddNotification }: {
     onAddNotification: (notification: Notification) => void,
 }) => {
     const Dialogs = useDialogs();
-    const repoTags = imageWillDelete.RepoTags ? imageWillDelete.RepoTags : [];
+    // copy the tags before sorting; the original array is shared with the
+    // images listing state and must not be reordered in place
+    const repoTags = imageWillDelete.RepoTags ? [...imageWillDelete.RepoTags] : [];
     const isIntermediateImage = repoTags.length === 0;
 
     const [tags, setTags] = useState<Record<string, boolean>>(repoTags.sort(sortTags).reduce<Record<string, boolean>>((acc, item, i) => {

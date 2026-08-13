@@ -6,11 +6,7 @@
 
 import { debounce } from 'throttle-debounce';
 
-import cockpit from 'cockpit';
-
 import type { ContainerStats } from './types.ts';
-
-const _ = cockpit.gettext;
 
 /**
  * Log a message to the console when the "docker" debugging flag is enabled.
@@ -21,12 +17,6 @@ export function debug(...args: unknown[]): void {
     if (window.debugging === "all" || window.debugging?.includes("docker"))
         console.debug("docker", ...args);
 }
-
-/**
- * Container states in the order used for sorting the containers table,
- * derived from the Docker container state machine.
- */
-export const states = [_("Created"), _("Restarting"), _("Running"), _("Paused"), _("Exited"), _("Removing"), _("Dead")];
 
 /**
  * Whether a string is usable as a new container name.

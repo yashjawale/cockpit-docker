@@ -39,7 +39,7 @@ import { ImageRunModal } from './ImageRunModal.tsx';
 import PruneUnusedContainersModal from './PruneUnusedContainersModal.tsx';
 import { StackActions } from './StackActions.tsx';
 import * as client from '../lib/client.ts';
-import { dockerStatsToView, image_name, quote_cmdline, states } from '../lib/util.ts';
+import { dockerStatsToView, image_name, quote_cmdline } from '../lib/util.ts';
 import { useDockerInfo } from '../lib/context.tsx';
 
 import type { ListingTableColumnProps, ListingTableRowProps } from "cockpit-components-table";
@@ -49,6 +49,19 @@ import type { ContainerStats, DockerContainer, DockerImage, Notification, Unused
 import '../styles/Containers.scss';
 
 const _ = cockpit.gettext;
+
+// The canonical docker container states in the order of the docker state
+// machine, used for sorting the state column. This is independent of the
+// localized display names, so that sorting works in every language.
+const stateOrder: Record<string, number> = {
+    created: 0,
+    restarting: 1,
+    running: 2,
+    paused: 3,
+    exited: 4,
+    removing: 5,
+    dead: 6,
+};
 
 /**
  * Translate a docker health check state into a localized display string.
@@ -344,13 +357,14 @@ const ContainerActions = ({ con, container, onAddNotification, localImages }: Co
      * Open the rename dialog, only offered for stopped containers.
      */
     const renameContainer = () => {
-        if (container.State?.Status !== "running") {
+        if (container.State?.Status !== "running" && container.State?.Status !== "paused") {
             Dialogs.show(<ContainerRenameModal con={con} container={container} />);
         }
     };
 
     /**
-     * Add the rename action to the kebab menu.
+     * Add the rename action to the kebab menu. Docker refuses to rename
+     * running or paused containers, so it is only offered for stopped ones.
      */
     const addRenameAction = () => {
         if (isStackContainer)
@@ -400,8 +414,6 @@ const ContainerActions = ({ con, container, onAddNotification, localImages }: Co
                 {_("Start")}
             </DropdownItem>
         );
-        addRenameAction();
-    } else { // running or paused
         addRenameAction();
     }
 
@@ -593,7 +605,7 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
         const containerStateClass = `ct-badge-container-${status.toLowerCase()}`;
         const containerState = status.charAt(0).toUpperCase() + status.slice(1);
 
-        const state = [<Badge key={containerState} isRead className={containerStateClass}>{_(containerState)}</Badge>]; // States are defined in util.js
+        const state = [<Badge key={containerState} isRead className={containerStateClass}>{_(containerState)}</Badge>];
         if (healthcheck) {
             localized_health = localize_health(healthcheck);
             if (localized_health)
@@ -722,7 +734,7 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
             // User containers are in front of system ones
             if (containers[a].uid !== containers[b].uid)
                 return (containers[a].uid === 0) ? 1 : -1;
-            return containers[a].Name > containers[b].Name ? 1 : -1;
+            return containers[a].Name.localeCompare(containers[b].Name);
         });
 
         return filtered;
@@ -830,20 +842,18 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
         const sortRows = (sortedRows: ListingTableRowProps[], direction: SortByDirection, idx: number) => {
             // CPU / Memory / States
             const isNumeric = idx === 2 || idx === 3 || idx === 4;
-            const stateOrderMapping: Record<string, number> = {};
-            states.forEach((elem, index) => {
-                stateOrderMapping[elem] = index;
-            });
             const result = sortedRows.sort((a, b) => {
                 let aitem = (a.columns[idx] as ContainerRowColumn).sortKey ?? (a.columns[idx] as ContainerRowColumn).title;
                 let bitem = (b.columns[idx] as ContainerRowColumn).sortKey ?? (b.columns[idx] as ContainerRowColumn).title;
-                // Sort the states based on the order defined in utils, so Running first.
+                // Sort the states in the order defined by the docker state machine,
+                // so Running first; the sort key is the (English) status, not a
+                // localized label, so the mapping works in every language.
                 if (idx === 4) {
-                    aitem = stateOrderMapping[aitem as string];
-                    bitem = stateOrderMapping[bitem as string];
+                    aitem = stateOrder[String(aitem).toLowerCase()] ?? -1;
+                    bitem = stateOrder[String(bitem).toLowerCase()] ?? -1;
                 }
                 if (isNumeric) {
-                    return (bitem as number) - (aitem as number);
+                    return (aitem as number) - (bitem as number);
                 } else {
                     return String(aitem).localeCompare(String(bitem));
                 }

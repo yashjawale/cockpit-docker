@@ -190,6 +190,10 @@ export const StackActions = ({ con, containers, containersStats, onAddNotificati
     let mem = 0;
     let hasStats = false;
     for (const container of containers) {
+        // Only running containers have live stats; a stopped container would
+        // otherwise contribute its last, now stale snapshot.
+        if (container.State?.Status !== "running")
+            continue;
         const containerStats = containersStats[container.key];
         if (!containerStats)
             continue;

@@ -275,7 +275,9 @@ const Application = () => {
     const statsStreamsRef = useRef<Record<string, Connection>>({});
 
     /**
-     * Close the stats stream of a single container, if one is open.
+     * Close the stats stream of a single container, if one is open, and drop
+     * its last usage snapshot so that stopped containers do not keep showing
+     * stale CPU/memory values.
      *
      * @param key State key of the container to stop streaming stats for
      */
@@ -285,6 +287,13 @@ const Application = () => {
             statsCon.close();
             delete statsStreamsRef.current[key];
         }
+        setState(prevState => {
+            if (prevState.containersStats[key] === undefined)
+                return prevState;
+            const containersStats = { ...prevState.containersStats };
+            delete containersStats[key];
+            return { ...prevState, containersStats };
+        });
     };
 
     /**

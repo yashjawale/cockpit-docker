@@ -12,6 +12,12 @@ esbuild, and is packaged as RPM, Debian, and Arch artifacts.
 
 See the `docs/` directory for in-depth notes:
 
+- `docs/architecture.md` — overall module architecture: data flow, layering
+  (`rest.ts` → `client.ts` → React components), daemon connections, state
+  management in `app.tsx`.
+- `docs/architecture-connections.md` — deeper dive into the multi-daemon
+  ("one daemon per owner") model, unique keys, event-driven refresh, stats
+  streaming, and docker-compose stacks.
 - `docs/ci.md` — GitHub Actions workflows, Packit/Testing Farm, Dependabot, and
   the release (tarball + .deb + .rpm) pipeline.
 - `docs/packit-setup.md` — Packit/COPR/Testing Farm setup and regression notes.

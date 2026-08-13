@@ -20,7 +20,7 @@ import { RelativeTime } from './RelativeTime.tsx';
 
 import type { ListingTableColumnProps, ListingTableRowProps } from "cockpit-components-table";
 import type { Connection } from '../lib/rest.ts';
-import type { Notification, Uid, UnusedContainer, User } from '../lib/types.ts';
+import type { DockerError, Notification, Uid, UnusedContainer, User } from '../lib/types.ts';
 
 const _ = cockpit.gettext;
 
@@ -82,12 +82,16 @@ const PruneUnusedContainersModal = ({ close, unusedContainers, onAddNotification
                 .filter(u => selectedContainerKeys.includes(u.key))
                 .map(u => client.delContainer(con_for(u.uid) as Connection, u.id, true));
 
-        Promise.all(actions).then(close)
-                .catch(ex => {
-                    const error = _("Failed to prune unused containers");
-                    onAddNotification({ type: 'danger', error, errorDetail: ex.message });
-                    close();
-                });
+        Promise.allSettled(actions).then(results => {
+            const failures = results
+                    .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+                    .map(result => (result.reason as DockerError).message);
+            if (failures.length > 0) {
+                const error = _("Failed to prune unused containers");
+                onAddNotification({ type: 'danger', error, errorDetail: failures.join("\n") });
+            }
+            close();
+        });
     };
 
     const columns: ListingTableColumnProps[] = [

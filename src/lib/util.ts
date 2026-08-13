@@ -6,11 +6,7 @@
 
 import { debounce } from 'throttle-debounce';
 
-import cockpit from 'cockpit';
-
 import type { ContainerStats } from './types.ts';
-
-const _ = cockpit.gettext;
 
 /**
  * Log a message to the console when the "docker" debugging flag is enabled.
@@ -21,12 +17,6 @@ export function debug(...args: unknown[]): void {
     if (window.debugging === "all" || window.debugging?.includes("docker"))
         console.debug("docker", ...args);
 }
-
-/**
- * Container states in the order used for sorting the containers table,
- * derived from the Docker container state machine.
- */
-export const states = [_("Created"), _("Restarting"), _("Running"), _("Paused"), _("Exited"), _("Removing"), _("Dead")];
 
 /**
  * Whether a string is usable as a new container name.
@@ -70,8 +60,11 @@ export function dockerStatsToView(stats: ContainerStats): ContainerStatsView {
     const cpuDelta = (stats.cpu_stats?.cpu_usage?.total_usage ?? 0) - (stats.precpu_stats?.cpu_usage?.total_usage ?? 0);
     const systemDelta = (stats.cpu_stats?.system_cpu_usage ?? 0) - (stats.precpu_stats?.system_cpu_usage ?? 0);
     const onlineCpus = stats.cpu_stats?.online_cpus;
-    if (systemDelta > 0 && cpuDelta > 0 && onlineCpus) {
-        view.CPU = (cpuDelta / systemDelta) * onlineCpus * 100;
+    // An idle container consumes no CPU between two snapshots, so the delta is
+    // zero; report 0% instead of dropping the value (which would make the CPU
+    // column disappear once a container idles). Negative deltas are clamped.
+    if (systemDelta > 0 && onlineCpus) {
+        view.CPU = (Math.max(0, cpuDelta) / systemDelta) * onlineCpus * 100;
     }
 
     const memUsage = stats.memory_stats?.usage;

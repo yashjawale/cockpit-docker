@@ -292,9 +292,12 @@ export const ImageRunModal = ({ users, image, localImages, dockerInfo, dialogs }
                     .filter(port => port?.containerPort)
                     .forEach(port => {
                         const binding: JsonObject = {};
-                        if (port?.hostPort !== null)
+                        // an empty host port or IP means "leave it to docker"
+                        // (random host port / all interfaces); an empty string
+                        // would otherwise be sent as the literal "NaN"
+                        if (port?.hostPort)
                             binding.HostPort = String(parseInt(String(port?.hostPort)));
-                        if (port?.IP !== null)
+                        if (port?.IP)
                             binding.HostIp = port?.IP as string;
                         portBindings[`${parseInt(String(port?.containerPort))}/${port?.protocol}`] = [binding];
                     });

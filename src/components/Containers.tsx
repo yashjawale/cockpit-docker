@@ -21,7 +21,6 @@ import { KebabDropdown } from "cockpit-components-dropdown.jsx";
 import { useDialogs } from "dialogs.jsx";
 
 import cockpit from 'cockpit';
-import { EmptyStatePanel } from "cockpit-components-empty-state.tsx";
 import { ListingPanel } from 'cockpit-components-listing-panel';
 import { ListingTable } from "cockpit-components-table";
 
@@ -39,7 +38,7 @@ import { ImageRunModal } from './ImageRunModal.tsx';
 import PruneUnusedContainersModal from './PruneUnusedContainersModal.tsx';
 import { StackActions } from './StackActions.tsx';
 import * as client from '../lib/client.ts';
-import { dockerStatsToView, image_name, quote_cmdline, states } from '../lib/util.ts';
+import { dockerStatsToView, image_name, quote_cmdline } from '../lib/util.ts';
 import { useDockerInfo } from '../lib/context.tsx';
 
 import type { ListingTableColumnProps, ListingTableRowProps } from "cockpit-components-table";
@@ -49,6 +48,19 @@ import type { ContainerStats, DockerContainer, DockerImage, Notification, Unused
 import '../styles/Containers.scss';
 
 const _ = cockpit.gettext;
+
+// The canonical docker container states in the order of the docker state
+// machine, used for sorting the state column. This is independent of the
+// localized display names, so that sorting works in every language.
+const stateOrder: Record<string, number> = {
+    created: 0,
+    restarting: 1,
+    running: 2,
+    paused: 3,
+    exited: 4,
+    removing: 5,
+    dead: 6,
+};
 
 /**
  * Translate a docker health check state into a localized display string.
@@ -175,25 +187,6 @@ const InactiveStackActions = ({ project, uid, onAddNotification }: {
     );
 };
 
-/**
- * Wrap a terminal tab renderer, showing a fallback when WebGL2 is unavailable.
- *
- * The WebGL renderer is required by xterm.js; without it the Logs and Console
- * tabs cannot display anything.
- */
-const ContainerTerminalWrapper = ({ webglAvailable, child, ...props }: {
-    webglAvailable: boolean,
-    child: React.ComponentType<Record<string, unknown>>,
-}) => {
-    const ChildComponent = child;
-
-    return (
-        webglAvailable
-            ? <ChildComponent {...props} />
-            : <EmptyStatePanel title={_("Terminal not available")} paragraph={_("This browser does not support WebGL2.")} />
-    );
-};
-
 /** A single column of the containers table, compatible with the ListingTable rows */
 interface ContainerRowColumn {
     title: React.ReactNode;
@@ -242,10 +235,11 @@ const ContainerActions = ({ con, container, onAddNotification, localImages }: Co
 
     /**
      * Delete the container, offering a force-remove confirmation when it is
-     * running.
+     * running or paused (docker refuses to remove paused containers without
+     * force).
      */
     const deleteContainer = () => {
-        if (container.State?.Status === "running") {
+        if (container.State?.Status === "running" || container.State?.Status === "paused") {
             const handleForceRemoveContainer = () => {
                 const id = container ? container.Id : "";
 
@@ -260,7 +254,7 @@ const ContainerActions = ({ con, container, onAddNotification, localImages }: Co
                         .then(() => undefined);
             };
 
-            Dialogs.show(<ForceRemoveModal name={container.Name} handleForceRemove={handleForceRemoveContainer} reason={_("Deleting a running container will erase all data in it.")} />);
+            Dialogs.show(<ForceRemoveModal name={container.Name} handleForceRemove={handleForceRemoveContainer} reason={_("Deleting this container will erase all data in it.")} />);
         } else {
             Dialogs.show(<ContainerDeleteModal con={con} containerWillDelete={container} onAddNotification={onAddNotification} />);
         }
@@ -344,13 +338,14 @@ const ContainerActions = ({ con, container, onAddNotification, localImages }: Co
      * Open the rename dialog, only offered for stopped containers.
      */
     const renameContainer = () => {
-        if (container.State?.Status !== "running") {
+        if (container.State?.Status !== "running" && container.State?.Status !== "paused") {
             Dialogs.show(<ContainerRenameModal con={con} container={container} />);
         }
     };
 
     /**
-     * Add the rename action to the kebab menu.
+     * Add the rename action to the kebab menu. Docker refuses to rename
+     * running or paused containers, so it is only offered for stopped ones.
      */
     const addRenameAction = () => {
         if (isStackContainer)
@@ -400,8 +395,6 @@ const ContainerActions = ({ con, container, onAddNotification, localImages }: Co
                 {_("Start")}
             </DropdownItem>
         );
-        addRenameAction();
-    } else { // running or paused
         addRenameAction();
     }
 
@@ -471,11 +464,6 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
     // The last observed state of each container, to detect status changes and
     // briefly highlight the changed row like a new row.
     const containerStatesRef = useRef<Record<string, string>>({});
-
-    // Check if WebGL2 is available; only checking if WebGL2RenderingContext is
-    // defined is not sufficient, in Firefox tests it is defined as WebGL is
-    // enabled but it is not available in headless mode.
-    const webglAvailable = !!document.createElement("canvas").getContext("webgl2");
 
     // Daemon owner that this session's stacks belong to: the system daemon as
     // long as it is reachable (root or an admin via escalation), otherwise the
@@ -593,7 +581,7 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
         const containerStateClass = `ct-badge-container-${status.toLowerCase()}`;
         const containerState = status.charAt(0).toUpperCase() + status.slice(1);
 
-        const state = [<Badge key={containerState} isRead className={containerStateClass}>{_(containerState)}</Badge>]; // States are defined in util.js
+        const state = [<Badge key={containerState} isRead className={containerStateClass}>{_(containerState)}</Badge>];
         if (healthcheck) {
             localized_health = localize_health(healthcheck);
             if (localized_health)
@@ -637,19 +625,17 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
             });
             tabs.push({
                 name: _("Logs"),
-                renderer: ContainerTerminalWrapper,
+                renderer: ContainerLogs,
                 data: {
                     containerId: container.Id,
                     containerStatus: container.State.Status,
                     width,
                     uid: container.uid,
-                    webglAvailable,
-                    child: ContainerLogs,
                 }
             });
             tabs.push({
                 name: _("Console"),
-                renderer: ContainerTerminalWrapper,
+                renderer: ContainerTerminal,
                 data: {
                     con: user.con,
                     containerId: container.Id,
@@ -657,8 +643,6 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
                     width,
                     uid: container.uid,
                     tty,
-                    webglAvailable,
-                    child: ContainerTerminal,
                 }
             });
         }
@@ -722,7 +706,7 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
             // User containers are in front of system ones
             if (containers[a].uid !== containers[b].uid)
                 return (containers[a].uid === 0) ? 1 : -1;
-            return containers[a].Name > containers[b].Name ? 1 : -1;
+            return containers[a].Name.localeCompare(containers[b].Name);
         });
 
         return filtered;
@@ -830,20 +814,18 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
         const sortRows = (sortedRows: ListingTableRowProps[], direction: SortByDirection, idx: number) => {
             // CPU / Memory / States
             const isNumeric = idx === 2 || idx === 3 || idx === 4;
-            const stateOrderMapping: Record<string, number> = {};
-            states.forEach((elem, index) => {
-                stateOrderMapping[elem] = index;
-            });
             const result = sortedRows.sort((a, b) => {
                 let aitem = (a.columns[idx] as ContainerRowColumn).sortKey ?? (a.columns[idx] as ContainerRowColumn).title;
                 let bitem = (b.columns[idx] as ContainerRowColumn).sortKey ?? (b.columns[idx] as ContainerRowColumn).title;
-                // Sort the states based on the order defined in utils, so Running first.
+                // Sort the states in the order defined by the docker state machine,
+                // so Running first; the sort key is the (English) status, not a
+                // localized label, so the mapping works in every language.
                 if (idx === 4) {
-                    aitem = stateOrderMapping[aitem as string];
-                    bitem = stateOrderMapping[bitem as string];
+                    aitem = stateOrder[String(aitem).toLowerCase()] ?? -1;
+                    bitem = stateOrder[String(bitem).toLowerCase()] ?? -1;
                 }
                 if (isNumeric) {
-                    return (bitem as number) - (aitem as number);
+                    return (aitem as number) - (bitem as number);
                 } else {
                     return String(aitem).localeCompare(String(bitem));
                 }

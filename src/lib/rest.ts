@@ -30,10 +30,10 @@ function format_error(error: object, content: unknown): object {
             content_o.message = content;
         }
         return { ...error, ...content_o };
-    } else {
+    } else if (content !== undefined) {
         console.warn("format_error(): content is not a string:", content);
-        return error;
     }
+    return error;
 }
 
 // calls are async, so keep track of a call counter to associate a result with a call
@@ -218,6 +218,12 @@ function connect(uid: Uid): Connection {
                 } else {
                     // empty body should not happen, would be a docker bug
                     const body_text = body.length > 0 ? decoder.decode(body) : "(empty)";
+                    // the request failed, so the channel will never stream data;
+                    // close it and drop it so that it does not leak
+                    const chIndex = raw_channels.indexOf(ch);
+                    if (chIndex >= 0)
+                        raw_channels.splice(chIndex, 1);
+                    ch.close();
                     reject(format_error({ reason: headers.split('\r\n')[0] }, body_text));
                 }
             };
@@ -240,7 +246,13 @@ function connect(uid: Uid): Connection {
 
                         const line_str = decoder.decode(line);
                         debug(user_str, "monitor", path, "data:", line_str);
-                        callback(JSON.parse(line_str));
+                        try {
+                            callback(JSON.parse(line_str));
+                        } catch (ex) {
+                            // a truncated or otherwise malformed line must not
+                            // break the whole stream
+                            console.warn("monitor", path, "ignoring invalid JSON line:", ex);
+                        }
                     }
                 }
             };

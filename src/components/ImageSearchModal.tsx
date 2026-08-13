@@ -4,7 +4,7 @@
  * Dialog to search the registry for images and download them.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 import { Button } from "@patternfly/react-core/dist/esm/components/Button";
 import { Alert } from "@patternfly/react-core/dist/esm/components/Alert";
@@ -107,6 +107,16 @@ export const ImageSearchModal = ({ downloadImage, users }: {
     const [typingTimeout, setTypingTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
 
     const Dialogs = useDialogs();
+    // always-current owner, so that a search scheduled before an owner switch
+    // still targets the daemon of the currently selected owner
+    const userRef = useRef(user);
+    userRef.current = user;
+
+    // clear the pending debounced search when the dialog is closed
+    useEffect(() => () => {
+        if (typingTimeout)
+            clearTimeout(typingTimeout);
+    }, [typingTimeout]);
 
     // The Docker daemon searches the default registry (Docker Hub) on our behalf.
     // The current input value is passed in because the imageIdentifier state lags
@@ -132,7 +142,7 @@ export const ImageSearchModal = ({ downloadImage, users }: {
             return;
         }
 
-        client.searchImages(user.con as Connection, identifier)
+        client.searchImages(userRef.current.con as Connection, identifier)
                 .then(reply => {
                     setImageList(reply);
                     setSearchInProgress(false);

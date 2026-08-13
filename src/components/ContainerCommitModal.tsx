@@ -50,13 +50,14 @@ const ContainerCommitModal = ({ con, container, localImages }: {
     const [nameError, setNameError] = useState("");
 
     /**
-     * Commit the container to a new image, skipping the name checks when force
-     * is set (used when the image name already exists).
+     * Commit the container to a new image, skipping the uniqueness check when
+     * force is set (used when the image name already exists). The name itself
+     * is always required.
      *
      * @param force Whether to skip the name uniqueness check
      */
     const handleCommit = (force: boolean) => {
-        if (!force && !imageName) {
+        if (!imageName) {
             setNameError(_("Image name is required"));
             return;
         }

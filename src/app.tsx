@@ -120,6 +120,8 @@ const Application = () => {
     // (which are registered once) never see a stale closure
     const stateRef = useRef(state);
     stateRef.current = state;
+    // uids whose daemon connection is currently being established
+    const initInFlight = useRef(new Set<number | null>());
 
     /**
      * Navigate to the root path with the given URL options.
@@ -260,22 +262,57 @@ const Application = () => {
                         const users = prevState.users.map(u => u.uid === con.uid ? { ...u, containersLoaded: true } : u);
                         return { ...prevState, containers: copyContainers, users };
                     });
-                    updateContainerStats(con);
+                    updateContainerStats(con, containerDetails);
                 })
                 .catch(e => console.warn("initContainers uid", con.uid, "getContainers failed:", e.toString()));
     };
 
+    // One stats stream connection per running container, keyed by its state
+    // key, so that individual streams can be started and closed. Docker only
+    // exposes the stats endpoint per container, so each running container gets
+    // its own connection (which can be closed independently from the daemon's
+    // main connection).
+    const statsStreamsRef = useRef<Record<string, Connection>>({});
+
     /**
-     * Subscribe to the usage statistics stream of one daemon.
+     * Close the stats stream of a single container, if one is open, and drop
+     * its last usage snapshot so that stopped containers do not keep showing
+     * stale CPU/memory values.
      *
-     * Docker sends one usage snapshot per container every second; each snapshot
-     * is stored under the container's state key so the Containers card can
-     * compute the CPU and memory columns from it.
-     *
-     * @param con Connection of the daemon to stream stats from
+     * @param key State key of the container to stop streaming stats for
      */
-    const updateContainerStats = (con: Connection) => {
-        client.streamContainerStats(con, (reply: JsonObject) => {
+    const closeStatsStream = (key: string) => {
+        const statsCon = statsStreamsRef.current[key];
+        if (statsCon) {
+            statsCon.close();
+            delete statsStreamsRef.current[key];
+        }
+        setState(prevState => {
+            if (prevState.containersStats[key] === undefined)
+                return prevState;
+            const containersStats = { ...prevState.containersStats };
+            delete containersStats[key];
+            return { ...prevState, containersStats };
+        });
+    };
+
+    /**
+     * Open the usage statistics stream of a running container.
+     *
+     * Docker sends one usage snapshot per second; each snapshot is stored under
+     * the container's state key so the Containers card can compute the CPU and
+     * memory columns from it. Streams of containers that stopped are closed.
+     *
+     * @param con Connection of the daemon owning the container
+     * @param id  Id of the container to stream stats of
+     */
+    const startStatsStream = (con: Connection, id: string) => {
+        const key = makeKey(con.uid, id);
+        if (statsStreamsRef.current[key])
+            return;
+        const statsCon = rest.connect(con.uid);
+        statsStreamsRef.current[key] = statsCon;
+        client.streamContainerStats(statsCon, id, (reply: JsonObject) => {
             const stat = reply as ContainerStats;
             const stat_id = stat.id;
             if (stat_id) {
@@ -288,7 +325,39 @@ const Application = () => {
                 }));
             }
         }).catch(ex => {
-            console.warn("Failed to update container stats:", JSON.stringify(ex));
+            console.warn("Stats stream of uid", con.uid, "container", id, "failed:", JSON.stringify(ex));
+        })
+                .finally(() => {
+                    // the stream ended (daemon/container removed or socket closed);
+                    // drop the tracking entry so a later start event can reopen it
+                    closeStatsStream(key);
+                });
+    };
+
+    /**
+     * Keep the stats streams of one daemon in sync with its running containers.
+     *
+     * Streams are opened for every running container and closed for containers
+     * that stopped, paused or were removed. The containers may be passed in
+     * directly (e.g. freshly inspected) or are read from the current state.
+     *
+     * @param con         Connection of the daemon to manage the streams of
+     * @param containers  Containers of that daemon, defaults to the current state
+     */
+    const updateContainerStats = (con: Connection, containers?: DockerContainer[]) => {
+        const list = containers ?? Object.values(stateRef.current.containers || {}).filter(c => c.uid === con.uid);
+        // the key prefix identifies the owner (see makeKey)
+        const ownerPrefix = `${con.uid ?? "user"}-`;
+        const runningKeys = new Set(
+            list.filter(c => c.State?.Status === "running").map(c => makeKey(con.uid, c.Id))
+        );
+        Object.keys(statsStreamsRef.current).forEach(key => {
+            if (key.startsWith(ownerPrefix) && !runningKeys.has(key))
+                closeStatsStream(key);
+        });
+        list.forEach(c => {
+            if (c.State?.Status === "running")
+                startStatsStream(con, c.Id);
         });
     };
 
@@ -429,20 +498,31 @@ const Application = () => {
          * which is also used to determine which images are in use.
          */
         case 'create':
-        case 'die':
         case 'health_status':
-        case 'kill':
         case 'oom':
-        case 'pause':
         case 'rename':
         case 'restart':
-        case 'start':
+            updateContainer(con, id);
+            break;
+        /* Containers that stopped are no longer displayed with CPU/memory
+         * usage, so close their stats stream.
+         */
+        case 'die':
+        case 'kill':
         case 'stop':
+        case 'pause':
+            updateContainer(con, id);
+            closeStatsStream(makeKey(con.uid, id));
+            break;
+        /* Containers that (re)started need a fresh stats stream. */
+        case 'start':
         case 'unpause':
             updateContainer(con, id);
+            startStatsStream(con, id);
             break;
         case 'destroy':
         case 'remove':
+            closeStatsStream(makeKey(con.uid, id));
             setState(prevState => {
                 const containers = { ...prevState.containers };
                 delete containers[makeKey(con.uid, id)];
@@ -474,6 +554,10 @@ const Application = () => {
             break;
         case 'image':
             handleImageEvent(event, con);
+            break;
+        case 'network':
+            // network connect/disconnect/create events do not change any
+            // containers or images we display, so no state update is needed
             break;
         default:
             console.warn('Unhandled event type ', event.Type);
@@ -513,9 +597,16 @@ const Application = () => {
             });
         }
 
-        // drop the usage snapshots of the closed connection; the key prefix
+        // close the stats streams of the closed connection; the key prefix
         // identifies the owner (see makeKey)
         const ownerPrefix = `${con.uid ?? "user"}-`;
+        Object.keys(statsStreamsRef.current).forEach(key => {
+            if (key.startsWith(ownerPrefix))
+                closeStatsStream(key);
+        });
+
+        // drop the usage snapshots of the closed connection; the key prefix
+        // identifies the owner (see makeKey)
         setState(prevState => {
             const containersStats: Record<string, ContainerStats> = {};
             Object.entries(prevState.containersStats || {}).forEach(([id, v]) => {
@@ -545,6 +636,13 @@ const Application = () => {
      * @param username Display name of the user for the UI
      */
     const init = async (uid: number | null, username: string) => {
+        // Guard against concurrent inits of the same user (e.g. the initial
+        // mount and a ?owner= navigation racing), which would open two
+        // sockets and event streams that can never be cleaned up.
+        if (initInFlight.current.has(uid))
+            return;
+        initInFlight.current.add(uid);
+
         debug("init uid", uid, "name", username);
         const system = uid === 0;
 
@@ -571,6 +669,8 @@ const Application = () => {
 
             setState(prevState => ({ ...prevState, users: prevState.users.filter(u => u.uid !== uid) }));
             return;
+        } finally {
+            initInFlight.current.delete(uid);
         }
 
         updateImages(con);
@@ -825,7 +925,7 @@ const Application = () => {
     return (
         <WithDockerInfo value={contextInfo}>
             <WithDialogs>
-                <Page id="overview" key="overview" className="pf-m-no-sidebar">
+                <Page id="overview" key="overview" className="pf-m-no-sidebar" isContentFilled>
                     {notificationList}
                     <PageSection hasBodyWrapper={false} className="content-filter">
                         <ContainerHeader

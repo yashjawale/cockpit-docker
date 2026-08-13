@@ -87,13 +87,17 @@ export const getContainers = (con: Connection): Promise<DockerContainer[]> =>
             .then(reply => reply as unknown as DockerContainer[]);
 
 /**
- * Stream usage statistics for all running containers.
+ * Stream usage statistics of a single container.
+ *
+ * Docker only exposes the stats endpoint per container; there is no bulk
+ * endpoint that would cover all containers at once.
  *
  * @param con      An established Docker API connection
+ * @param id       Id of the container to stream the stats of
  * @param callback Invoked for every newline-delimited JSON stats message received
  */
-export const streamContainerStats = (con: Connection, callback: MonitorCallback) =>
-    con.monitor(`${VERSION}containers/stats?stream=true`, callback);
+export const streamContainerStats = (con: Connection, id: string, callback: MonitorCallback) =>
+    con.monitor(`${VERSION}containers/${id}/stats?stream=true`, callback);
 
 /**
  * Inspect a container and return its detailed configuration.

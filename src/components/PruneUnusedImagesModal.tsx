@@ -19,7 +19,7 @@ import cockpit from 'cockpit';
 import * as client from '../lib/client.ts';
 import { image_name } from '../lib/util.ts';
 
-import type { DockerImage, Notification, User } from '../lib/types.ts';
+import type { DockerError, DockerImage, Notification, User } from '../lib/types.ts';
 
 import "@patternfly/patternfly/utilities/Spacing/spacing.css";
 
@@ -96,12 +96,16 @@ const PruneUnusedImagesModal = ({ close, unusedImages, onAddNotification, users 
         setPruning(true);
 
         const actions = deleteOwners.map(owner => client.pruneUnusedImages(owner.con as NonNullable<User["con"]>));
-        Promise.all(actions).then(close)
-                .catch(ex => {
-                    const error = _("Failed to prune unused images");
-                    onAddNotification({ type: 'danger', error, errorDetail: ex.message });
-                    close();
-                });
+        Promise.allSettled(actions).then(results => {
+            const failures = results
+                    .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+                    .map(result => (result.reason as DockerError).message);
+            if (failures.length > 0) {
+                const error = _("Failed to prune unused images");
+                onAddNotification({ type: 'danger', error, errorDetail: failures.join("\n") });
+            }
+            close();
+        });
     };
 
     const showCheckboxes = unusedOwners.length > 1;

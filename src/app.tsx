@@ -925,7 +925,7 @@ const Application = () => {
     return (
         <WithDockerInfo value={contextInfo}>
             <WithDialogs>
-                <Page id="overview" key="overview" className="pf-m-no-sidebar">
+                <Page id="overview" key="overview" className="pf-m-no-sidebar" isContentFilled>
                     {notificationList}
                     <PageSection hasBodyWrapper={false} className="content-filter">
                         <ContainerHeader

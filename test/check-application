@@ -302,6 +302,32 @@ class TestApplication(testlib.MachineCase):
             b.enter_page("/cockpit-docker")
             b.wait_not_present(".container-name")
 
+    def testPortRanges(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cockpit-docker")
+        try:
+            # consecutive container ports are collapsed into a single range in
+            # the Integration tab, even when the daemon reports an interleaved
+            # protocol (80/udp) between them
+            m.execute("docker run -d --name test-ports -p 8080:80 -p 8081:81 "
+                      "-p 8080:80/udp busybox sleep 10000")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            row = "#containers-containers tr[data-row-name='0-test-ports']"
+            b.wait_visible(row)
+
+            b.click(row + " .pf-v6-c-table__toggle button")
+            b.click("#containers-containers .pf-v6-c-tabs__item button:contains('Integration')")
+            b.wait_in_text("#containers-containers .container-integration-ports", "80-81/tcp")
+            b.wait_in_text("#containers-containers .container-integration-ports", "80/udp")
+        finally:
+            m.execute("docker rm -f test-ports")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_not_present(".container-name")
+
     def testContainerHealth(self):
         b = self.browser
         m = self.machine
@@ -451,6 +477,35 @@ class TestApplication(testlib.MachineCase):
         finally:
             # remove the stack directory created by the dialog
             m.execute("rm -rf /var/lib/cockpit-docker/stacks/test-ui-stack")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_not_present(".container-inactive-stacks")
+
+    def testRemoveInactiveStack(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cockpit-docker")
+        try:
+            # create an inactive stack on disk, so it shows up in the listing
+            m.execute('''mkdir -p /var/lib/cockpit-docker/stacks/test-remove-stack
+cat > /var/lib/cockpit-docker/stacks/test-remove-stack/docker-compose.yml <<'EOF'
+services:
+  web:
+    image: busybox
+    command: ["sleep", "3600"]
+EOF''')
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_in_text(".container-inactive-stacks", "test-remove-stack")
+
+            # removing the stack must make it disappear immediately; when it was
+            # the only stack the whole section disappears with it
+            b.click("#inactive-stack-actions-test-remove-stack")
+            b.click(".pf-v6-c-menu__item:contains('Remove')")
+            b.wait_not_present("tr[data-row-name='test-remove-stack']")
+        finally:
+            m.execute("rm -rf /var/lib/cockpit-docker/stacks/test-remove-stack")
             b.reload()
             b.enter_page("/cockpit-docker")
             b.wait_not_present(".container-inactive-stacks")
@@ -605,6 +660,45 @@ EOF''')
 
         b.click(".btn-cancel")
         b.wait_not_present(".pf-v6-c-modal-box")
+
+    def testPortBindings(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cockpit-docker")
+        try:
+            b.click("#containers-images .pf-v6-c-expandable-section__toggle button")
+            b.wait_visible("#containers-images .image-name")
+            b.click("#containers-images .ct-container-create")
+            b.wait_visible(".pf-v6-c-modal-box")
+
+            # keep the container running, so it can be inspected afterwards
+            b.set_input_text("#run-image-dialog-name", "test-portbind")
+            b.set_input_text("#run-image-dialog-command", "sleep 10000")
+
+            # map two different host ports to the same container port
+            b.click(".pf-v6-c-modal-box .pf-v6-c-tabs__item button:contains('Integration')")
+            b.click(".publish-port-form .btn-add")
+            b.wait_visible("#run-image-dialog-publish-0-container-port")
+            b.set_input_text("#run-image-dialog-publish-0-container-port", "80")
+            b.set_input_text("#run-image-dialog-publish-0-host-port", "8080")
+            b.click(".publish-port-form .btn-add")
+            b.wait_visible("#run-image-dialog-publish-1-container-port")
+            b.set_input_text("#run-image-dialog-publish-1-container-port", "80")
+            b.set_input_text("#run-image-dialog-publish-1-host-port", "8081")
+
+            b.click("#create-image-create-run-btn")
+            b.wait_not_present(".pf-v6-c-modal-box")
+
+            # both host ports must be bound to the container's port 80
+            output = m.execute("docker port test-portbind 80")
+            self.assertIn("0.0.0.0:8080", output)
+            self.assertIn("0.0.0.0:8081", output)
+        finally:
+            m.execute("docker rm -f test-portbind || true")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_not_present(".container-name")
 
     def testImageDeleteTag(self):
         b = self.browser

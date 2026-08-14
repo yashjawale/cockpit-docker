@@ -4,7 +4,7 @@
  * The Images listing card, including download, prune and run actions.
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Badge } from "@patternfly/react-core/dist/esm/components/Badge";
 import { Button } from "@patternfly/react-core/dist/esm/components/Button";
@@ -111,8 +111,71 @@ const useImageUpdates = (images: Record<string, DockerImage> | null): Record<str
     // keys of images that a registry lookup is already running for
     const inflightRef = useRef<Record<string, boolean>>({});
     // the local digest each image was last checked against, so unrelated
-    // re-renders do not trigger new registry lookups
+    // re-renders do not trigger new registry lookups; only set on success, so
+    // a failed lookup is retried instead of being skipped forever
     const checkedRef = useRef<Record<string, string>>({});
+    // pending retry timers of failed lookups, to recover from a transient
+    // registry problem without hammering it
+    const retryTimersRef = useRef<Record<string, number>>({});
+    // always-current image map, so the retry timer looks up the latest data
+    const imagesRef = useRef(images);
+    imagesRef.current = images;
+
+    /** Delay before a failed lookup is retried once */
+    const RETRY_DELAY_MS = 30000;
+
+    /**
+     * Check a single image against its registry, comparing the registry's
+     * current digest with the digests recorded at pull time. On success the
+     * image is marked as checked (per its local digest); on failure it is not,
+     * and the lookup is retried periodically so that a transient failure does
+     * not hide updates for the whole session.
+     *
+     * @param key   State key of the image
+     * @param image The image to check
+     */
+    const runCheck = useCallback((key: string, image: DockerImage) => {
+        const localDigest = (image.RepoDigests ?? [])[0] ?? "";
+        const tag = (image.RepoTags ?? []).find(tag => tag.endsWith(":latest"));
+        if (tag === undefined)
+            return;
+
+        inflightRef.current[key] = true;
+        client.checkImageUpdate(tag)
+                .then(remoteDigest => {
+                    checkedRef.current[key] = localDigest;
+                    const upToDate = (image.RepoDigests ?? []).some(digest => digest.includes(remoteDigest));
+                    setUpdates(prev => {
+                        const next = { ...prev };
+                        if (upToDate)
+                            delete next[key];
+                        else
+                            next[key] = true;
+                        return next;
+                    });
+                })
+                .catch(() => {
+                    // the registry could not be reached (missing buildx,
+                    // no network, unknown tag, ...); do not claim an update,
+                    // and retry periodically in case it was only transient
+                    setUpdates(prev => {
+                        const next = { ...prev };
+                        delete next[key];
+                        return next;
+                    });
+                    if (retryTimersRef.current[key] === undefined) {
+                        retryTimersRef.current[key] = window.setTimeout(() => {
+                            delete retryTimersRef.current[key];
+                            const latest = imagesRef.current?.[key];
+                            if (latest && checkedRef.current[key] === undefined && !inflightRef.current[key])
+                                runCheck(key, latest);
+                        }, RETRY_DELAY_MS);
+                    }
+                })
+                .finally(() => {
+                    delete inflightRef.current[key];
+                });
+    }, []);
 
     useEffect(() => {
         if (images === null)
@@ -139,38 +202,15 @@ const useImageUpdates = (images: Record<string, DockerImage> | null): Record<str
             const localDigest = (image.RepoDigests ?? [])[0] ?? "";
             if (inflightRef.current[key] || checkedRef.current[key] === localDigest)
                 return;
-            const tag = (image.RepoTags ?? []).find(tag => tag.endsWith(":latest"));
-            if (tag === undefined)
-                return;
-
-            inflightRef.current[key] = true;
-            checkedRef.current[key] = localDigest;
-            client.checkImageUpdate(tag)
-                    .then(remoteDigest => {
-                        const upToDate = (image.RepoDigests ?? []).some(digest => digest.includes(remoteDigest));
-                        setUpdates(prev => {
-                            const next = { ...prev };
-                            if (upToDate)
-                                delete next[key];
-                            else
-                                next[key] = true;
-                            return next;
-                        });
-                    })
-                    .catch(() => {
-                        // the registry could not be reached (missing buildx,
-                        // no network, unknown tag, ...); do not claim an update
-                        setUpdates(prev => {
-                            const next = { ...prev };
-                            delete next[key];
-                            return next;
-                        });
-                    })
-                    .finally(() => {
-                        delete inflightRef.current[key];
-                    });
+            runCheck(key, image);
         });
-    }, [images]);
+    // runCheck is stable (useCallback with empty deps), so it does not retrigger
+    }, [images, runCheck]);
+
+    // drop pending retry timers on unmount
+    useEffect(() => () => {
+        Object.values(retryTimersRef.current).forEach(timer => window.clearTimeout(timer));
+    }, []);
 
     return updates;
 };

@@ -302,6 +302,32 @@ class TestApplication(testlib.MachineCase):
             b.enter_page("/cockpit-docker")
             b.wait_not_present(".container-name")
 
+    def testPortRanges(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cockpit-docker")
+        try:
+            # consecutive container ports are collapsed into a single range in
+            # the Integration tab, even when the daemon reports an interleaved
+            # protocol (80/udp) between them
+            m.execute("docker run -d --name test-ports -p 8080:80 -p 8081:81 "
+                      "-p 8080:80/udp busybox sleep 10000")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            row = "#containers-containers tr[data-row-name='0-test-ports']"
+            b.wait_visible(row)
+
+            b.click(row + " .pf-v6-c-table__toggle button")
+            b.click("#containers-containers .pf-v6-c-tabs__item button:contains('Integration')")
+            b.wait_in_text("#containers-containers .container-integration-ports", "80-81/tcp")
+            b.wait_in_text("#containers-containers .container-integration-ports", "80/udp")
+        finally:
+            m.execute("docker rm -f test-ports")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_not_present(".container-name")
+
     def testContainerHealth(self):
         b = self.browser
         m = self.machine

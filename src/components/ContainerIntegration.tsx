@@ -23,7 +23,11 @@ const _ = cockpit.gettext;
  * Render the published ports of a container as a list of ranges.
  *
  * The port mapping is a dict like { "5000/tcp": [{ "HostIp": "", "HostPort": "6000" }] };
- * consecutive host and container ports are collapsed into a single range.
+ * consecutive host and container ports are collapsed into a single range. The
+ * bindings are flattened and sorted by protocol, host IP and port, because the
+ * daemon reports them keyed by container port in alphabetical order, which
+ * interleaves protocols (e.g. 80/tcp, 80/udp, 81/tcp) and would otherwise
+ * prevent merging 80/tcp with 81/tcp.
  *
  * @param ports The container's port bindings, keyed by container port/protocol
  */
@@ -31,50 +35,55 @@ export const renderContainerPublishedPorts = (ports: Record<string, DockerPortBi
     if (!ports || Object.keys(ports).length === 0)
         return null;
 
-    const ranges: { startPort: number, endPort: number, protocol: string, hostIp: string, hostStartPort: number, hostEndPort: number }[] = [];
-    const items: React.ReactNode[] = [];
-
-    // create port ranges
+    // flatten every binding into one entry so they can be sorted and merged
+    // regardless of the dictionary iteration order
+    const bindings: { portNumber: number, protocol: string, hostIp: string, hostPort: number }[] = [];
     Object.entries(ports).forEach(([containerPort, hostBindings]) => {
         const [port, proto] = containerPort.split('/');
         const portNumber = Number(port);
         // not-covered: null was observed in the wild, but unknown how to reproduce
         (hostBindings ?? []).forEach(binding => {
-            const lastRange = ranges[ranges.length - 1];
-            const hostIP = binding.HostIp || "0.0.0.0";
-            const hostPort = Number(binding.HostPort);
-
-            let isPortConsecutive = false;
-            let isHostPortConsecutive = false;
-            let isSameHostIP = false;
-            let isSameProtocol = false;
-
-            if (lastRange) {
-                isPortConsecutive = portNumber === lastRange.endPort + 1;
-                isHostPortConsecutive = hostPort === lastRange.hostEndPort + 1;
-                isSameHostIP = hostIP === lastRange.hostIp;
-                isSameProtocol = proto === lastRange.protocol;
-            }
-
-            if (isPortConsecutive && isHostPortConsecutive && isSameHostIP && isSameProtocol) {
-                // ports are consecutive, so extend the range
-                lastRange.endPort = portNumber;
-                lastRange.hostEndPort = hostPort;
-            } else {
-                // ports are not consecutive, so start a new range
-                ranges.push({
-                    startPort: portNumber,
-                    endPort: portNumber,
-                    protocol: proto,
-                    hostIp: hostIP,
-                    hostStartPort: hostPort,
-                    hostEndPort: hostPort
-                });
-            }
+            bindings.push({
+                portNumber,
+                protocol: proto,
+                hostIp: binding.HostIp || "0.0.0.0",
+                hostPort: Number(binding.HostPort),
+            });
         });
     });
 
+    bindings.sort((a, b) =>
+        a.protocol.localeCompare(b.protocol) ||
+        a.hostIp.localeCompare(b.hostIp) ||
+        a.portNumber - b.portNumber ||
+        a.hostPort - b.hostPort);
+
+    // collapse consecutive container and host ports into ranges
+    const ranges: { startPort: number, endPort: number, protocol: string, hostIp: string, hostStartPort: number, hostEndPort: number }[] = [];
+    bindings.forEach(binding => {
+        const lastRange = ranges[ranges.length - 1];
+        const isConsecutive = lastRange !== undefined &&
+            lastRange.protocol === binding.protocol &&
+            lastRange.hostIp === binding.hostIp &&
+            binding.portNumber === lastRange.endPort + 1 &&
+            binding.hostPort === lastRange.hostEndPort + 1;
+        if (isConsecutive) {
+            lastRange.endPort = binding.portNumber;
+            lastRange.hostEndPort = binding.hostPort;
+        } else {
+            ranges.push({
+                startPort: binding.portNumber,
+                endPort: binding.portNumber,
+                protocol: binding.protocol,
+                hostIp: binding.hostIp,
+                hostStartPort: binding.hostPort,
+                hostEndPort: binding.hostPort,
+            });
+        }
+    });
+
     // create list items based on the ranges
+    const items: React.ReactNode[] = [];
     ranges.forEach(({ startPort, endPort, protocol, hostIp, hostStartPort, hostEndPort }) => {
         // include the protocol in the key so that e.g. 80/tcp and 80/udp bound
         // to the same host port get distinct keys

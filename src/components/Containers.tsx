@@ -83,13 +83,39 @@ const localize_health = (state: string | undefined) => {
 };
 
 /**
- * The kebab menu in the card header offering the prune-unused-containers action.
+ * The kebab menu in the card header offering bulk start/stop actions for the
+ * listed containers and the prune-unused-containers action.
  */
-const ContainerOverActions = ({ handlePruneUnusedContainers, unusedContainers }: {
+const ContainerOverActions = ({ handlePruneUnusedContainers, handleStartAllContainers, handleStopAllContainers, unusedContainers, runningContainers, stoppedContainers }: {
     handlePruneUnusedContainers: () => void,
+    handleStartAllContainers: () => void,
+    handleStopAllContainers: () => void,
     unusedContainers: UnusedContainer[],
+    runningContainers: number,
+    stoppedContainers: number,
 }) => {
     const actions = [
+        <DropdownItem
+            key="start-all-containers"
+            id="start-all-containers-button"
+            component="button"
+            onClick={() => handleStartAllContainers()}
+            isDisabled={stoppedContainers === 0}
+            isAriaDisabled={stoppedContainers === 0}
+        >
+            {_("Start all containers")}
+        </DropdownItem>,
+        <DropdownItem
+            key="stop-all-containers"
+            id="stop-all-containers-button"
+            component="button"
+            onClick={() => handleStopAllContainers()}
+            isDisabled={runningContainers === 0}
+            isAriaDisabled={runningContainers === 0}
+        >
+            {_("Stop all containers")}
+        </DropdownItem>,
+        <Divider key="separator" />,
         <DropdownItem
             key="prune-unused-containers"
             id="prune-unused-containers-button"
@@ -833,6 +859,49 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
             return direction === SortByDirection.asc ? result : result.reverse();
         };
 
+        // The containers of the current listing that the bulk start/stop
+        // actions will act on, used both to enable the actions and by the
+        // handlers. Stacks keep their containers grouped, so the bulk actions
+        // work on the listing as a whole.
+        const runningContainers = filtered.filter(id => containers[id].State?.Status === "running");
+        const stoppedContainers = filtered.filter(id => ["created", "exited", "dead"].includes(containers[id].State?.Status ?? ""));
+
+        /**
+         * Start every stopped container of the current listing, reporting each
+         * failure individually like the per-row actions do.
+         */
+        const startAllContainers = () => {
+            Promise.allSettled(stoppedContainers.map(id => {
+                const con = users.find(u => u.uid === containers[id].uid)?.con as Connection;
+                return client.postContainer(con, "start", containers[id].Id, {});
+            })).then(results => {
+                results.forEach((result, i) => {
+                    if (result.status === "rejected") {
+                        const error = cockpit.format(_("Failed to start container $0"), containers[stoppedContainers[i]].Name); // not-covered: OS error
+                        onAddNotification({ type: 'danger', error, errorDetail: (result.reason as Error).message });
+                    }
+                });
+            });
+        };
+
+        /**
+         * Stop every running container of the current listing, reporting each
+         * failure individually like the per-row actions do.
+         */
+        const stopAllContainers = () => {
+            Promise.allSettled(runningContainers.map(id => {
+                const con = users.find(u => u.uid === containers[id].uid)?.con as Connection;
+                return client.postContainer(con, "stop", containers[id].Id, {});
+            })).then(results => {
+                results.forEach((result, i) => {
+                    if (result.status === "rejected") {
+                        const error = cockpit.format(_("Failed to stop container $0"), containers[runningContainers[i]].Name); // not-covered: OS error
+                        onAddNotification({ type: 'danger', error, errorDetail: (result.reason as Error).message });
+                    }
+                });
+            });
+        };
+
         const filterRunning = (
             <Toolbar>
                 <ToolbarContent className="containers-containers-toolbarcontent">
@@ -863,7 +932,14 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
                         </Button>
                     </ToolbarItem>
                     <ToolbarItem>
-                        <ContainerOverActions unusedContainers={unusedContainers} handlePruneUnusedContainers={onOpenPruneUnusedContainersDialog} />
+                        <ContainerOverActions
+                            unusedContainers={unusedContainers}
+                            handlePruneUnusedContainers={onOpenPruneUnusedContainersDialog}
+                            handleStartAllContainers={startAllContainers}
+                            handleStopAllContainers={stopAllContainers}
+                            runningContainers={runningContainers.length}
+                            stoppedContainers={stoppedContainers.length}
+                        />
                     </ToolbarItem>
                 </ToolbarContent>
             </Toolbar>

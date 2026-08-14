@@ -351,6 +351,36 @@ class TestApplication(testlib.MachineCase):
             b.enter_page("/cockpit-docker")
             b.wait_not_present(".container-name")
 
+    def testStartStopAll(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cockpit-docker")
+        try:
+            m.execute("docker run -d --name test-bulk-a busybox sleep 10000")
+            m.execute("docker run --name test-bulk-b busybox true")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_in_text("#containers-containers tr[data-row-name='0-test-bulk-a']", "Running")
+            b.wait_in_text("#containers-containers tr[data-row-name='0-test-bulk-b']", "Exited")
+
+            # stopping all containers stops the running one and leaves the stopped one alone
+            b.click("#containers-actions-dropdown")
+            b.click("#stop-all-containers-button")
+            b.wait_in_text("#containers-containers tr[data-row-name='0-test-bulk-a']", "Exited")
+            b.wait_in_text("#containers-containers tr[data-row-name='0-test-bulk-b']", "Exited")
+
+            # starting all containers starts the stopped one again
+            b.click("#containers-actions-dropdown")
+            b.click("#start-all-containers-button")
+            b.wait_in_text("#containers-containers tr[data-row-name='0-test-bulk-b']", "Running")
+            b.wait_in_text("#containers-containers tr[data-row-name='0-test-bulk-a']", "Exited")
+        finally:
+            m.execute("docker rm -f test-bulk-a test-bulk-b")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_not_present(".container-name")
+
     def testImageCreateRun(self):
         b = self.browser
         m = self.machine

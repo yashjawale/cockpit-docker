@@ -358,25 +358,32 @@ class TestApplication(testlib.MachineCase):
         self.login_and_go("/cockpit-docker")
         try:
             m.execute("docker run -d --name test-bulk-a busybox sleep 10000")
-            m.execute("docker run --name test-bulk-b busybox true")
+            m.execute("docker run -d --name test-bulk-b busybox sleep 10000")
+            # a container that was created but never started
+            m.execute("docker create --name test-bulk-c busybox sleep 10000")
             b.reload()
             b.enter_page("/cockpit-docker")
             b.wait_in_text("#containers-containers tr[data-row-name='0-test-bulk-a']", "Running")
-            b.wait_in_text("#containers-containers tr[data-row-name='0-test-bulk-b']", "Exited")
+            b.wait_in_text("#containers-containers tr[data-row-name='0-test-bulk-b']", "Running")
+            b.wait_in_text("#containers-containers tr[data-row-name='0-test-bulk-c']", "Created")
 
-            # stopping all containers stops the running one and leaves the stopped one alone
+            # stopping all containers stops the running ones and leaves the
+            # already-stopped one alone
             b.click("#containers-actions-dropdown")
             b.click("#stop-all-containers-button")
             b.wait_in_text("#containers-containers tr[data-row-name='0-test-bulk-a']", "Exited")
             b.wait_in_text("#containers-containers tr[data-row-name='0-test-bulk-b']", "Exited")
+            b.wait_in_text("#containers-containers tr[data-row-name='0-test-bulk-c']", "Created")
 
-            # starting all containers starts the stopped one again
+            # starting all containers starts the stopped ones, including the
+            # never-started one
             b.click("#containers-actions-dropdown")
             b.click("#start-all-containers-button")
+            b.wait_in_text("#containers-containers tr[data-row-name='0-test-bulk-a']", "Running")
             b.wait_in_text("#containers-containers tr[data-row-name='0-test-bulk-b']", "Running")
-            b.wait_in_text("#containers-containers tr[data-row-name='0-test-bulk-a']", "Exited")
+            b.wait_in_text("#containers-containers tr[data-row-name='0-test-bulk-c']", "Running")
         finally:
-            m.execute("docker rm -f test-bulk-a test-bulk-b")
+            m.execute("docker rm -f test-bulk-a test-bulk-b test-bulk-c")
             b.reload()
             b.enter_page("/cockpit-docker")
             b.wait_not_present(".container-name")

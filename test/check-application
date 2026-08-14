@@ -634,6 +634,9 @@ EOF''')
             b.wait_not_present(row + " .ct-badge-image-update")
         finally:
             m.execute("docker rmi update-badgetest:latest || true")
+            # drop any dangling <none> image the build left behind, so the
+            # shared nondestructive VM is left in a pristine state
+            m.execute("docker image prune -f || true")
             b.reload()
             b.enter_page("/cockpit-docker")
             b.wait_visible("#containers-images")
@@ -675,13 +678,20 @@ EOF''')
             row = "#containers-images tr[data-row-name='0-localhost:5000/updtest:latest']"
             b.wait_visible(row)
             # the local digest no longer matches the registry's, so an update
-            # badge is shown, and the header counts it
+            # badge is shown; the assertions are scoped to this row and the
+            # header label, because other images (e.g. a busybox:latest that
+            # moved in its registry since the image was built) may legitimately
+            # show a badge as well
             b.wait_visible(row + " .ct-badge-image-update")
-            b.wait_in_text("#containers-images .ct-badge-image-update", "Update available")
-            b.wait_in_text("#containers-images", "1 update available")
+            b.wait_in_text(row + " .ct-badge-image-update", "Update available")
+            b.wait_visible("#containers-images [data-testid='images-update-count']")
         finally:
             m.execute("docker rm -f test-updreg || true")
             m.execute("docker rmi localhost:5000/updtest:latest localhost:5000/updtest:v1backup || true")
+            m.execute("docker rmi registry:2 || true")
+            # drop the dangling <none> images the builds left behind, so the
+            # shared nondestructive VM is left in a pristine state
+            m.execute("docker image prune -f || true")
             b.reload()
             b.enter_page("/cockpit-docker")
             b.wait_visible("#containers-images")

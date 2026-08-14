@@ -14,6 +14,11 @@
     vertical-align: middle;
 }
 
+#containers-images .ct-badge-image-update {
+    margin-inline-start: var(--pf-t--global--spacer--sm);
+    vertical-align: middle;
+}
+
 #containers-images .pf-v6-c-table.pf-m-compact .pf-v6-c-table__action {
     --pf-v6-c-table--cell--responsive--PaddingBlockEnd: 0.5rem;
     --pf-v6-c-table--m-compact__action--PaddingBlockStart: 0.5rem;

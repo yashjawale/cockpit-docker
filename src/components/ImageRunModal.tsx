@@ -287,7 +287,7 @@ export const ImageRunModal = ({ users, image, localImages, dockerInfo, dialogs }
         }
 
         if (stateRef.current.publish.some(port => port !== undefined)) {
-            const portBindings: JsonObject = {};
+            const portBindings: Record<string, JsonObject[]> = {};
             stateRef.current.publish
                     .filter(port => port?.containerPort)
                     .forEach(port => {
@@ -299,7 +299,11 @@ export const ImageRunModal = ({ users, image, localImages, dockerInfo, dialogs }
                             binding.HostPort = String(parseInt(String(port?.hostPort)));
                         if (port?.IP)
                             binding.HostIp = port?.IP as string;
-                        portBindings[`${parseInt(String(port?.containerPort))}/${port?.protocol}`] = [binding];
+                        // several rows may map different host ports to the same
+                        // container port (e.g. 8080:80 and 8081:80); append
+                        // instead of overwriting, which docker supports
+                        const key = `${parseInt(String(port?.containerPort))}/${port?.protocol}`;
+                        portBindings[key] = [...(portBindings[key] ?? []), binding];
                     });
             hostConfig.PortBindings = portBindings;
         }

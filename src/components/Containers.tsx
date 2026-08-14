@@ -135,12 +135,14 @@ const ContainerOverActions = ({ handlePruneUnusedContainers, handleStartAllConta
 /**
  * Actions of an inactive stack: start it through docker compose, edit its files
  * or remove its directory. Starting reloads the stack list so the stack moves
- * to the containers listing once its containers appear.
+ * to the containers listing once its containers appear; removing reloads it so
+ * the deleted stack disappears from the list immediately.
  */
-const InactiveStackActions = ({ project, uid, onAddNotification }: {
+const InactiveStackActions = ({ project, uid, onAddNotification, onStackRemoved }: {
     project: string,
     uid: Uid,
     onAddNotification: (notification: Notification) => void,
+    onStackRemoved: () => void,
 }) => {
     const [inProgress, setInProgress] = useState(false);
     const Dialogs = useDialogs();
@@ -175,10 +177,12 @@ const InactiveStackActions = ({ project, uid, onAddNotification }: {
 
     /**
      * Remove the stack directory. Inactive stacks have no containers, so only
-     * the files on disk are deleted.
+     * the files on disk are deleted; the list is refreshed so the deleted
+     * stack does not linger in the inactive stacks section.
      */
     const removeStack = () => {
         cockpit.spawn(["rm", "-rf", dir], { superuser, err: "message" })
+                .then(onStackRemoved)
                 .catch(ex => {
                     const error = cockpit.format(_("Failed to remove stack $0"), project); // not-covered: OS error
                     onAddNotification({ type: 'danger', error, errorDetail: ex.message });
@@ -1018,7 +1022,7 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
                                             { title: project },
                                             {
                                                 title: (
-                                                    <InactiveStackActions project={project} uid={stacksOwner} onAddNotification={onAddNotification} />
+                                                    <InactiveStackActions project={project} uid={stacksOwner} onAddNotification={onAddNotification} onStackRemoved={refreshStacks} />
                                                 ),
                                                 props: { className: "pf-v6-c-table__action" },
                                             },

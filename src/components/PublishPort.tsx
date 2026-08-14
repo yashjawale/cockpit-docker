@@ -43,8 +43,10 @@ export function validatePublishPort(value: string | number | null | undefined, k
         break;
     case "hostPort": {
         if (str) {
-            const hostPort = parseInt(str);
-            if (hostPort < 1 || hostPort > MAX_PORT)
+            // use Number() so that fractional ("1.5") and non-numeric ("abc")
+            // input is rejected instead of parseInt silently truncating to 1
+            const hostPort = Number(str);
+            if (!Number.isInteger(hostPort) || hostPort < 1 || hostPort > MAX_PORT)
                 return _("1 to 65535");
         }
 
@@ -54,8 +56,8 @@ export function validatePublishPort(value: string | number | null | undefined, k
         if (!str)
             return _("Container port must not be empty");
 
-        const containerPort = parseInt(str);
-        if (containerPort < 1 || containerPort > MAX_PORT)
+        const containerPort = Number(str);
+        if (!Number.isInteger(containerPort) || containerPort < 1 || containerPort > MAX_PORT)
             return _("1 to 65535");
 
         break;
@@ -96,7 +98,7 @@ export const PublishPort = ({ id, item, onChange, idx, removeitem, validationFai
                 validated={validationFailed?.IP ? "error" : "default"}
                 onChange={(_event, value) => {
                     validationClear(validationFailed, "IP", onValidationChange);
-                    validationDebounce(() => onValidationChange?.({ ...validationFailed, IP: validatePublishPort(value, "IP") }));
+                    validationDebounce(id + "-IP", () => onValidationChange?.({ ...validationFailed, IP: validatePublishPort(value, "IP") }));
                     onChange(idx, 'IP', value);
                 }}
             />
@@ -127,7 +129,7 @@ export const PublishPort = ({ id, item, onChange, idx, removeitem, validationFai
                 validated={validationFailed?.hostPort ? "error" : "default"}
                 onChange={(_event, value) => {
                     validationClear(validationFailed, "hostPort", onValidationChange);
-                    validationDebounce(() => onValidationChange?.({ ...validationFailed, hostPort: validatePublishPort(value, "hostPort") }));
+                    validationDebounce(id + "-hostPort", () => onValidationChange?.({ ...validationFailed, hostPort: validatePublishPort(value, "hostPort") }));
                     onChange(idx, 'hostPort', value);
                 }}
             />
@@ -150,7 +152,7 @@ export const PublishPort = ({ id, item, onChange, idx, removeitem, validationFai
                 value={item.containerPort || ''}
                 onChange={(_event, value) => {
                     validationClear(validationFailed, "containerPort", onValidationChange);
-                    validationDebounce(() => onValidationChange?.({ ...validationFailed, containerPort: validatePublishPort(value, "containerPort") }));
+                    validationDebounce(id + "-containerPort", () => onValidationChange?.({ ...validationFailed, containerPort: validatePublishPort(value, "containerPort") }));
                     onChange(idx, 'containerPort', value);
                 }}
             />

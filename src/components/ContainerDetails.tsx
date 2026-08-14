@@ -21,14 +21,19 @@ const _ = cockpit.gettext;
 
 /**
  * Render the container state line: "Up since" with a relative timestamp for
- * running containers, otherwise a plain "Exited" marker.
+ * running containers, otherwise the localized state (e.g. "Exited" or
+ * "Paused"). Only the container's actual state is shown, so a paused, created
+ * or restarting container is never mislabeled as exited.
  *
  * @param container The container to render the state for
  */
 const render_container_state = (container: DockerContainer) => {
-    if (container.State?.Status === "running") {
-        return <><span>{ _("Up since:") } </span><RelativeTime time={container.State.StartedAt ?? ""} /></>;
+    const status = container.State?.Status;
+    if (status === "running") {
+        return <><span>{ _("Up since:") } </span><RelativeTime time={container.State?.StartedAt ?? ""} /></>;
     }
+    if (status)
+        return _(status.charAt(0).toUpperCase() + status.slice(1));
     return cockpit.format(_("Exited"));
 };
 

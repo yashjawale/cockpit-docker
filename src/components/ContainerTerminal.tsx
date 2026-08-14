@@ -19,7 +19,11 @@ import rest from '../lib/rest.ts';
 import "../styles/ContainerTerminal.scss";
 
 const _ = cockpit.gettext;
-const decoder = new TextDecoder();
+// One-shot decoder for the HTTP response header, plus a persistent streaming
+// decoder for the terminal data: a multi-byte UTF-8 character split across two
+// channel messages must be reassembled instead of being decoded as U+FFFD.
+const headerDecoder = new TextDecoder();
+const dataDecoder = new TextDecoder();
 const encoder = new TextEncoder();
 
 /** The xterm internals we reach into for hiding the cursor */
@@ -132,24 +136,24 @@ const ContainerTerminal = ({ con, containerId, containerStatus, width, uid, tty 
 
     const onChannelMessage = (buffer: Uint8Array) => {
         if (buffer)
-            term.write(decoder.decode(buffer));
+            term.write(dataDecoder.decode(buffer));
         return buffer.length;
     };
+
+    // The close handler that is actually registered on the channel, kept in a
+    // ref so that the cleanup can remove the exact same function instance no
+    // matter which render established the channel. Without this, the listener
+    // registered by the render that connected survives the cleanup and fires
+    // after the terminal was disposed, throwing in xterm.
+    const onChannelCloseRef = useRef<(() => void) | null>(null);
 
     const disconnectChannel = () => {
         if (bufferRef.current)
             bufferRef.current.callback = null;
-        if (channelRef.current) {
-            channelRef.current.removeEventListener('close', onChannelClose);
+        if (channelRef.current && onChannelCloseRef.current) {
+            channelRef.current.removeEventListener('close', onChannelCloseRef.current);
+            onChannelCloseRef.current = null;
         }
-    };
-
-    const onChannelClose = () => {
-        term.write('\x1b[31m disconnected \x1b[m\r\n');
-        disconnectChannel();
-        channelRef.current = null;
-        connectedRef.current = false;
-        (term as unknown as XtermCore)._core.cursorHidden = true;
     };
 
     const setUpBuffer = (channel: BufferedChannel) => {
@@ -165,14 +169,20 @@ const ContainerTerminal = ({ con, containerId, containerStatus, width, uid, tty 
             if (pos === -1)
                 return ret;
 
-            const headers = decoder.decode(
+            const headers = headerDecoder.decode(
                 data.subarray ? data.subarray(0, pos) : data.slice(0, pos));
 
             const parts = headers.split("\r\n", 1)[0].split(" ");
             // Check if we got `101` as we expect `HTTP/1.1 101 UPGRADED`
             if (parts[1] !== "101") {
-                console.log(parts.slice(2).join(" "));
+                // The upgrade failed (e.g. the container stopped between the
+                // status check and the attach). Report it and close the channel
+                // instead of leaving a blank terminal and a leaking connection.
                 buffer.callback = null;
+                const reason = parts.slice(2).join(" ")
+                        .trim();
+                setErrorMessage(reason || _("Failed to connect to the console"));
+                channelRef.current?.close();
                 return ret;
             } else if (data.subarray) {
                 data = data.subarray(pos + 4);
@@ -191,7 +201,17 @@ const ContainerTerminal = ({ con, containerId, containerStatus, width, uid, tty 
             return ret + consumed;
         };
 
-        channel.addEventListener('close', onChannelClose);
+        const handleChannelClose = () => {
+            // flush any partial multi-byte sequence, so a reconnection starts clean
+            dataDecoder.decode();
+            term.write('\x1b[31m disconnected \x1b[m\r\n');
+            onChannelCloseRef.current = null;
+            channelRef.current = null;
+            connectedRef.current = false;
+            (term as unknown as XtermCore)._core.cursorHidden = true;
+        };
+        onChannelCloseRef.current = handleChannelClose;
+        channel.addEventListener('close', handleChannelClose);
 
         // Show the terminal. Once it was shown, do not show it again but reuse the previous one.
         // The default DOM renderer is used instead of the WebGL addon: every

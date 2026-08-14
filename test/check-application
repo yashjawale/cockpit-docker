@@ -67,6 +67,11 @@ class TestApplication(testlib.MachineCase):
             b.click(".pf-v6-c-menu__item:contains('Pause')")
             b.wait_in_text("#containers-containers tr[data-row-name='0-test-actions']", "Paused")
 
+            # the Details tab shows the actual state, not a generic "Exited"
+            b.click("#containers-containers tr[data-row-name='0-test-actions'] .pf-v6-c-table__toggle button")
+            b.wait_in_text("#containers-containers .container-details-state", "Paused")
+            b.click("#containers-containers tr[data-row-name='0-test-actions'] .pf-v6-c-table__toggle button")
+
             b.click("#containers-containers tr[data-row-name='0-test-actions'] .pf-v6-c-menu-toggle")
             b.click(".pf-v6-c-menu__item:contains('Resume')")
             b.wait_in_text("#containers-containers tr[data-row-name='0-test-actions']", "Running")
@@ -571,6 +576,33 @@ EOF''')
         b.wait_text(".pf-v6-c-modal-box__title", "Create container")
         b.wait_visible("#run-image-dialog-name")
         # cancel without creating anything
+        b.click(".btn-cancel")
+        b.wait_not_present(".pf-v6-c-modal-box")
+
+    def testPortValidation(self):
+        b = self.browser
+
+        self.login_and_go("/cockpit-docker")
+        b.click("#containers-images .pf-v6-c-expandable-section__toggle button")
+        b.wait_visible("#containers-images .image-name")
+        b.click("#containers-images .ct-container-create")
+        b.wait_visible(".pf-v6-c-modal-box")
+
+        # add a port mapping and give the container port a valid value
+        b.click(".pf-v6-c-modal-box .pf-v6-c-tabs__item button:contains('Integration')")
+        b.click(".publish-port-form .btn-add")
+        b.wait_visible("#run-image-dialog-publish-0-container-port")
+        b.set_input_text("#run-image-dialog-publish-0-container-port", "80")
+
+        # a fractional host port must be rejected instead of being silently
+        # truncated to port 1 by parseInt
+        b.set_input_text("#run-image-dialog-publish-0-host-port", "1.5")
+        b.wait_in_text("#run-image-dialog-publish-0-host-port-group", "1 to 65535")
+
+        # a valid host port clears the error
+        b.set_input_text("#run-image-dialog-publish-0-host-port", "8080")
+        b.wait_not_in_text("#run-image-dialog-publish-0-host-port-group", "1 to 65535")
+
         b.click(".btn-cancel")
         b.wait_not_present(".pf-v6-c-modal-box")
 

@@ -332,6 +332,23 @@ export const searchImages = (con: Connection, term: string): Promise<ImageSearch
             .then(reply => reply as unknown as ImageSearchResult[]);
 
 /**
+ * Fetch the current digest of an image reference from its registry.
+ *
+ * Uses the docker CLI's buildx plugin to resolve the image's current digest
+ * without pulling it. Comparing this digest with the digests recorded in the
+ * local image's RepoDigests reveals whether a mutable tag like "latest" has
+ * moved, i.e. whether an update is available. Requires the docker CLI and the
+ * buildx plugin on the host; the promise rejects when they are missing, the
+ * tag does not exist in the registry or the registry cannot be reached.
+ *
+ * @param ref Image reference in the form name[:tag]
+ * @returns A promise resolving to the current digest of the reference
+ */
+export const checkImageUpdate = (ref: string): Promise<string> =>
+    cockpit.spawn(["docker", "buildx", "imagetools", "inspect", "--format", "{{.Manifest.Digest}}", ref], { err: "ignore" })
+            .then(output => output.trim());
+
+/**
  * Remove all unused images, not just dangling ones.
  *
  * @param con An established Docker API connection

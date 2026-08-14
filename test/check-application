@@ -652,6 +652,87 @@ EOF''')
             b.enter_page("/cockpit-docker")
             b.wait_not_present(".container-name")
 
+    def testImageUpdates(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cockpit-docker")
+        try:
+            # A locally built image has no registry digest recorded, so the
+            # update check never runs for it and no "Update available" badge is
+            # shown. This also guards against the listing breaking when the
+            # registry lookup fails (no buildx, no network, unknown registry).
+            m.execute("docker build -t update-badgetest:latest - <<'EOF'\nFROM busybox\nEOF")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.click("#containers-images .pf-v6-c-expandable-section__toggle button")
+            row = "#containers-images tr[data-row-name='0-update-badgetest:latest']"
+            b.wait_visible(row)
+            b.wait_not_present(row + " .ct-badge-image-update")
+        finally:
+            m.execute("docker rmi update-badgetest:latest || true")
+            # drop any dangling <none> image the build left behind, so the
+            # shared nondestructive VM is left in a pristine state
+            m.execute("docker image prune -f || true")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_visible("#containers-images")
+
+    def testImageUpdateAvailable(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/cockpit-docker")
+        try:
+            # A registry on localhost acts as a deterministic stand-in for
+            # Docker Hub, so the test does not depend on external images or
+            # their state. It needs the network only to pull the registry
+            # image; when that is not available the test is skipped.
+            try:
+                m.execute("docker run -d -p 5000:5000 --name test-updreg registry:2")
+            except Exception as ex:
+                self.skipTest(f"registry:2 could not be pulled: {ex}")
+            # v1 is pushed as :latest, so the local image records its digest
+            m.execute("docker build -t localhost:5000/updtest:latest - <<'EOF'\n"
+                      "FROM busybox\n"
+                      "RUN echo v1 > /marker\n"
+                      "EOF")
+            m.execute("docker push localhost:5000/updtest:latest")
+            # keep v1 alive under a backup tag, then push a newer v2 as
+            # :latest; the registry now serves the newer digest while the
+            # locally tagged image still records the old one
+            m.execute("docker tag localhost:5000/updtest:latest localhost:5000/updtest:v1backup")
+            m.execute("docker build -t localhost:5000/updtest:latest - <<'EOF'\n"
+                      "FROM busybox\n"
+                      "RUN echo v2 > /marker\n"
+                      "EOF")
+            m.execute("docker push localhost:5000/updtest:latest")
+            m.execute("docker tag localhost:5000/updtest:v1backup localhost:5000/updtest:latest")
+
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.click("#containers-images .pf-v6-c-expandable-section__toggle button")
+            row = "#containers-images tr[data-row-name='0-localhost:5000/updtest:latest']"
+            b.wait_visible(row)
+            # the local digest no longer matches the registry's, so an update
+            # badge is shown; the assertions are scoped to this row and the
+            # header label, because other images (e.g. a busybox:latest that
+            # moved in its registry since the image was built) may legitimately
+            # show a badge as well
+            b.wait_visible(row + " .ct-badge-image-update")
+            b.wait_in_text(row + " .ct-badge-image-update", "Update available")
+            b.wait_visible("#containers-images [data-testid='images-update-count']")
+        finally:
+            m.execute("docker rm -f test-updreg || true")
+            m.execute("docker rmi localhost:5000/updtest:latest localhost:5000/updtest:v1backup || true")
+            m.execute("docker rmi registry:2 || true")
+            # drop the dangling <none> images the builds left behind, so the
+            # shared nondestructive VM is left in a pristine state
+            m.execute("docker image prune -f || true")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_visible("#containers-images")
+
 
 # This test gets its own fresh VM (not @nondestructive) because it makes
 # permanent changes: it hides the docker CLI and stops the docker daemon.

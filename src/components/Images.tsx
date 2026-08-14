@@ -4,7 +4,7 @@
  * The Images listing card, including download, prune and run actions.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 import { Badge } from "@patternfly/react-core/dist/esm/components/Badge";
 import { Button } from "@patternfly/react-core/dist/esm/components/Button";
@@ -12,6 +12,7 @@ import { Card, CardBody, CardFooter, CardHeader, CardTitle } from "@patternfly/r
 import { Content, ContentVariants } from "@patternfly/react-core/dist/esm/components/Content";
 import { DropdownItem } from '@patternfly/react-core/dist/esm/components/Dropdown/index.js';
 import { ExpandableSection } from "@patternfly/react-core/dist/esm/components/ExpandableSection";
+import { Label } from "@patternfly/react-core/dist/esm/components/Label";
 import { Flex, FlexItem } from "@patternfly/react-core/dist/esm/layouts/Flex";
 import { SortByDirection } from '@patternfly/react-table';
 import { KebabDropdown } from "cockpit-components-dropdown.jsx";
@@ -92,6 +93,89 @@ const isLocalImage = (image: DockerImage): boolean => {
 };
 
 /**
+ * Detect images whose mutable ":latest" tag has a newer version available in
+ * its registry.
+ *
+ * For every image with a ":latest" tag and a digest recorded at pull time, the
+ * registry's current digest is fetched through the docker CLI (see
+ * client.checkImageUpdate) and compared with the recorded RepoDigests. A
+ * mismatch means the tag has moved and an update is available. Images without
+ * a ":latest" tag, images never pulled from a registry, and images whose
+ * registry cannot be reached are reported as up-to-date.
+ *
+ * @param images All images, keyed by their state key, or null while loading
+ * @returns A map of image state key to whether an update is available
+ */
+const useImageUpdates = (images: Record<string, DockerImage> | null): Record<string, boolean> => {
+    const [updates, setUpdates] = useState<Record<string, boolean>>({});
+    // keys of images that a registry lookup is already running for
+    const inflightRef = useRef<Record<string, boolean>>({});
+    // the local digest each image was last checked against, so unrelated
+    // re-renders do not trigger new registry lookups
+    const checkedRef = useRef<Record<string, string>>({});
+
+    useEffect(() => {
+        if (images === null)
+            return;
+
+        const checkable = Object.entries(images).filter(([, image]) => {
+            const tags = image.RepoTags ?? [];
+            const digests = image.RepoDigests ?? [];
+            return digests.length > 0 && tags.some(tag => tag.endsWith(":latest"));
+        });
+
+        // drop stale results for images that are no longer checkable
+        const checkableKeys = new Set(checkable.map(([key]) => key));
+        setUpdates(prev => {
+            const stale = Object.keys(prev).filter(key => !checkableKeys.has(key));
+            if (stale.length === 0)
+                return prev;
+            const next = { ...prev };
+            stale.forEach(key => delete next[key]);
+            return next;
+        });
+
+        checkable.forEach(([key, image]) => {
+            const localDigest = (image.RepoDigests ?? [])[0] ?? "";
+            if (inflightRef.current[key] || checkedRef.current[key] === localDigest)
+                return;
+            const tag = (image.RepoTags ?? []).find(tag => tag.endsWith(":latest"));
+            if (tag === undefined)
+                return;
+
+            inflightRef.current[key] = true;
+            checkedRef.current[key] = localDigest;
+            client.checkImageUpdate(tag)
+                    .then(remoteDigest => {
+                        const upToDate = (image.RepoDigests ?? []).some(digest => digest.includes(remoteDigest));
+                        setUpdates(prev => {
+                            const next = { ...prev };
+                            if (upToDate)
+                                delete next[key];
+                            else
+                                next[key] = true;
+                            return next;
+                        });
+                    })
+                    .catch(() => {
+                        // the registry could not be reached (missing buildx,
+                        // no network, unknown tag, ...); do not claim an update
+                        setUpdates(prev => {
+                            const next = { ...prev };
+                            delete next[key];
+                            return next;
+                        });
+                    })
+                    .finally(() => {
+                        delete inflightRef.current[key];
+                    });
+        });
+    }, [images]);
+
+    return updates;
+};
+
+/**
  * The Images card listing all images of the selected owners.
  *
  * Each row shows the name, owner, creation time, id, disk usage and the
@@ -106,6 +190,8 @@ const Images = ({ images, imageContainerList, onAddNotification, textFilter, own
     // List of container image names which are being downloaded
     const [imageDownloadInProgress, setImageDownloadInProgress] = useState<string[]>([]);
     const [showPruneUnusedImagesModal, setShowPruneUnusedImagesModal] = useState(false);
+    // images whose ":latest" tag has a newer version in its registry
+    const updates = useImageUpdates(images);
 
     /**
      * Pull an image from a registry, tracking the download in the footer.
@@ -236,6 +322,7 @@ const Images = ({ images, imageContainerList, onAddNotification, textFilter, own
                     <>
                         <span className="image-name">{image_name(image)}</span>
                         {isLocalImage(image) && <Badge isRead className="ct-badge-image-local">{_("local")}</Badge>}
+                        {updates[image.key] && <Label color="orange" isCompact className="ct-badge-image-update">{_("Update available")}</Label>}
                     </>
                 ),
                 header: true,
@@ -404,6 +491,7 @@ const Images = ({ images, imageContainerList, onAddNotification, textFilter, own
     );
 
     const { imageStats, unusedImages } = calculateStats();
+    const updateCount = Object.values(updates).filter(Boolean).length;
     const imageTitleStats = (
         <>
             <Content>
@@ -413,6 +501,10 @@ const Images = ({ images, imageContainerList, onAddNotification, textFilter, own
                 <Content>
                     {cockpit.format(cockpit.ngettext("$0 unused image, $1", "$0 unused images, $1", imageStats.unusedTotal), imageStats.unusedTotal, cockpit.format_bytes(imageStats.unusedSize))}
                 </Content>}
+            {updateCount > 0 &&
+                <Label color="orange" isCompact className="ct-badge-image-update" data-testid="images-update-count">
+                    {cockpit.format(cockpit.ngettext("$0 update available", "$0 updates available", updateCount), updateCount)}
+                </Label>}
         </>
     );
 

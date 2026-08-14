@@ -700,6 +700,139 @@ EOF''')
             b.enter_page("/cockpit-docker")
             b.wait_not_present(".container-name")
 
+    def testPortMap(self):
+        b = self.browser
+        m = self.machine
+
+        # the host ports of the rows, in DOM order
+        def wait_ports(expected):
+            js = ("JSON.stringify(Array.from(document.querySelectorAll('#port-map-table tbody tr'))"
+                  ".map(tr => tr.children[0].textContent.trim()))"
+                  " === JSON.stringify(" + testlib.jsquote(expected) + ")")
+            b.wait_js_cond(js)
+
+        def wait_names(expected):
+            js = ("JSON.stringify(Array.from(document.querySelectorAll('#port-map-table tbody tr'))"
+                  ".map(tr => (tr.children[1].querySelector('.container-name')?.textContent || '').trim()))"
+                  " === JSON.stringify(" + testlib.jsquote(expected) + ")")
+            b.wait_js_cond(js)
+
+        self.login_and_go("/cockpit-docker")
+        try:
+            # three running containers with published host ports; the names sort
+            # differently than the ports, so both sort orders are observable
+            # (avoid port 9090, which the cockpit web service uses on the VM)
+            m.execute("docker run -d --name test-portmap-c -p 7070:70 busybox sleep 10000")
+            m.execute("docker run -d --name test-portmap-a -p 9080:80 busybox sleep 10000")
+            m.execute("docker run -d --name test-portmap-b -p 9081:81 -p 9082:82 busybox sleep 10000")
+            # a stopped container whose port is only configured, not bound
+            m.execute("docker run --name test-portmap-stopped -p 7090:90 busybox true")
+            # two inactive stacks that both reserve host port 7070, i.e. a
+            # port conflict between them and with the active container
+            m.execute('''mkdir -p /var/lib/cockpit-docker/stacks/test-portmap-stack
+cat > /var/lib/cockpit-docker/stacks/test-portmap-stack/docker-compose.yml <<'EOF'
+services:
+  web:
+    image: busybox
+    ports:
+      - "7070:80"
+EOF
+mkdir -p /var/lib/cockpit-docker/stacks/test-portmap-stack2
+cat > /var/lib/cockpit-docker/stacks/test-portmap-stack2/docker-compose.yml <<'EOF'
+services:
+  api:
+    image: busybox
+    ports:
+      - "7070:80"
+EOF''')
+            # a stack that was started and then stopped: it still has
+            # containers, so it is not an inactive stack, but its container
+            # is stopped and occupies host port 7080
+            m.execute('''mkdir -p /var/lib/cockpit-docker/stacks/test-portmap-stopped-stack
+cat > /var/lib/cockpit-docker/stacks/test-portmap-stopped-stack/docker-compose.yml <<'EOF'
+services:
+  db:
+    image: busybox
+    command: ["sleep", "3600"]
+    ports:
+      - "7080:80"
+EOF
+cd /var/lib/cockpit-docker/stacks/test-portmap-stopped-stack && docker compose up -d && docker compose stop''')
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_visible("tr[data-row-name='0-test-portmap-a']")
+
+            # open the port map from the containers header menu
+            b.click("#containers-actions-dropdown")
+            b.click("#port-map-button")
+            b.wait_visible(".pf-v6-c-modal-box")
+            b.wait_text(".pf-v6-c-modal-box__title", "Port map")
+
+            # the running containers' ports are listed, sorted by host port,
+            # each row showing the container name, its image below it and the port
+            wait_ports(["7070/tcp", "9080/tcp", "9081/tcp", "9082/tcp"])
+            b.wait_in_text("#port-map-table", "test-portmap-c")
+            b.wait_in_text("#port-map-table", "test-portmap-a")
+            b.wait_in_text("#port-map-table", "test-portmap-b")
+            b.wait_in_text("#port-map-table", "busybox")
+            # stopped containers, stopped stacks and inactive stacks are not
+            # included yet
+            b.wait_not_in_text("#port-map-table", "inactive stack")
+            b.wait_not_in_text("#port-map-table", "test-portmap-stack")
+            b.wait_not_in_text("#port-map-table", "7080/tcp")
+            b.wait_not_in_text("#port-map-table", "7090/tcp")
+
+            # including stopped containers and inactive stacks shows the
+            # reserved ports of everything not running, sorted by host port
+            b.set_checked("#port-map-include-inactive", True)
+            wait_ports(["7070/tcp", "7070/tcp", "7070/tcp", "7080/tcp", "7090/tcp",
+                        "9080/tcp", "9081/tcp", "9082/tcp"])
+            wait_names([
+                "test-portmap-c", "web", "api", "test-portmap-stopped-stack-db-1",
+                "test-portmap-stopped", "test-portmap-a", "test-portmap-b", "test-portmap-b",
+            ])
+            # the stopped container and the stopped stack's container are marked
+            b.wait_in_text("#port-map-table tr[data-row-name='test-portmap-stopped'] .ct-portmap-inactive",
+                           "stopped")
+            b.wait_in_text("#port-map-table tr[data-row-name='test-portmap-stopped-stack-db-1'] .ct-portmap-inactive",
+                           "stopped")
+            b.wait_in_text("#port-map-table tr[data-row-name='test-portmap-stopped-stack-db-1']",
+                           "test-portmap-stopped-stack")
+            # the two inactive stacks conflict over host port 7070 (also used
+            # by the running container) and are called out
+            b.wait_in_text("#port-map-table", "inactive stack")
+            b.wait_in_text("#port-map-table", "test-portmap-stack")
+            b.wait_in_text("#port-map-table", "test-portmap-stack2")
+            b.wait_js_cond("document.querySelectorAll('#port-map-table .ct-portmap-conflict').length === 2")
+
+            # grouping shows one row per container, with all of its ports
+            b.set_checked("#port-map-group-containers", True)
+            wait_ports(["7070/tcp", "7070/tcp", "7070/tcp", "7080/tcp", "7090/tcp",
+                        "9080/tcp", "9081/tcp, 9082/tcp"])
+            wait_names([
+                "test-portmap-c", "web", "api", "test-portmap-stopped-stack-db-1",
+                "test-portmap-stopped", "test-portmap-a", "test-portmap-b",
+            ])
+
+            # ungrouping again and sorting by container name reorders the rows
+            b.set_checked("#port-map-group-containers", False)
+            b.click("#port-map-table thead th:nth-child(2) button")
+            wait_names([
+                "api", "test-portmap-a", "test-portmap-b", "test-portmap-b",
+                "test-portmap-c", "test-portmap-stopped",
+                "test-portmap-stopped-stack-db-1", "web",
+            ])
+        finally:
+            m.execute("cd /var/lib/cockpit-docker/stacks/test-portmap-stopped-stack && "
+                      "docker compose down --remove-orphans >/dev/null 2>&1 || true")
+            m.execute("docker rm -f test-portmap-a test-portmap-b test-portmap-c test-portmap-stopped")
+            m.execute("rm -rf /var/lib/cockpit-docker/stacks/test-portmap-stack "
+                      "/var/lib/cockpit-docker/stacks/test-portmap-stack2 "
+                      "/var/lib/cockpit-docker/stacks/test-portmap-stopped-stack")
+            b.reload()
+            b.enter_page("/cockpit-docker")
+            b.wait_not_present(".container-name")
+
     def testImageDeleteTag(self):
         b = self.browser
         m = self.machine

@@ -76,8 +76,10 @@ export const renderContainerPublishedPorts = (ports: Record<string, DockerPortBi
 
     // create list items based on the ranges
     ranges.forEach(({ startPort, endPort, protocol, hostIp, hostStartPort, hostEndPort }) => {
+        // include the protocol in the key so that e.g. 80/tcp and 80/udp bound
+        // to the same host port get distinct keys
         items.push(
-            <ListItem key={startPort + hostIp + hostStartPort}>
+            <ListItem key={`${startPort}-${hostIp}-${hostStartPort}-${protocol}`}>
                 {hostIp}:{hostStartPort}{hostStartPort !== hostEndPort ? `-${hostEndPort}` : ''} &rarr; {startPort}{startPort !== endPort ? `-${endPort}` : ''}/{protocol}
             </ListItem>
         );

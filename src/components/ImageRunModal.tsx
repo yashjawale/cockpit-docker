@@ -872,7 +872,7 @@ export const ImageRunModal = ({ users, image, localImages, dockerInfo, dialogs }
                         value={dialogValues.containerName}
                         onChange={(_event, value) => {
                             validationClear(dialogValues.validationFailed as unknown as Record<string, string>, "containerName", (value) => onValueChanged("validationFailed", value as unknown as ImageRunValidation));
-                            validationDebounce(async () => {
+                            validationDebounce("containerName", async () => {
                                 const delta = await validateContainerName(value);
                                 if (delta)
                                     onValueChanged("validationFailed", { ...dialogValues.validationFailed, containerName: delta });

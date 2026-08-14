@@ -120,7 +120,7 @@ export const EnvVar = ({ id, item, onChange, idx, removeitem, additem, itemCount
                 validated={validationFailed?.envKey ? "error" : "default"}
                 onChange={(_event, value) => {
                     validationClear(validationFailed, "envKey", onValidationChange);
-                    validationDebounce(() => onValidationChange?.({ ...validationFailed, envKey: validateEnvVar(value, "envKey") }));
+                    validationDebounce(id + "-envKey", () => onValidationChange?.({ ...validationFailed, envKey: validateEnvVar(value, "envKey") }));
                     handleEnvValue('envKey', value, idx, onChange, additem, itemCount, item.envValue);
                 }}
             />
@@ -138,7 +138,7 @@ export const EnvVar = ({ id, item, onChange, idx, removeitem, additem, itemCount
                 validated={validationFailed?.envValue ? "error" : "default"}
                 onChange={(_event, value) => {
                     validationClear(validationFailed, "envValue", onValidationChange);
-                    validationDebounce(() => onValidationChange?.({ ...validationFailed, envValue: validateEnvVar(value, "envValue") }));
+                    validationDebounce(id + "-envValue", () => onValidationChange?.({ ...validationFailed, envValue: validateEnvVar(value, "envValue") }));
                     handleEnvValue('envValue', value, idx, onChange, additem, itemCount, item.envKey);
                 }}
             />

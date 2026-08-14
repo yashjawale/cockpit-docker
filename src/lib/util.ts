@@ -236,6 +236,13 @@ export const validationClear = (validationFailed: ValidationState | undefined, k
  * Debounced wrapper that defers a validation run by 500ms.
  *
  * Defined at module scope because a debounce instance must survive re-renders;
- * recreating it inside a component would reset the timer on every render.
+ * recreating it inside a component would reset the timer on every render. The
+ * instances are keyed by the caller (the dynamic-list row and field id), so
+ * that editing one field never cancels the pending validation of another.
  */
-export const validationDebounce = debounce(500, (validationHandler: () => void) => validationHandler());
+const validationDebouncers: Record<string, ReturnType<typeof debounce>> = {};
+export function validationDebounce(key: string, validationHandler: () => void) {
+    if (!validationDebouncers[key])
+        validationDebouncers[key] = debounce(500, (handler: () => void) => handler());
+    validationDebouncers[key](validationHandler);
+}

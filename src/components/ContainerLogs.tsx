@@ -137,9 +137,17 @@ const ContainerLogs = ({ containerId, containerStatus, width, uid }: ContainerLo
         }
     };
 
-    const onStreamClose = () => {
+    const onStreamClose = (connection: ReturnType<typeof rest.connect>) => {
         if (mountedRef.current) {
-            streamerRef.current = null;
+            // Reset the loading flag so that a reconnect clears the view
+            // first; otherwise the tail of the new stream is appended on top
+            // of the old content, duplicating the output.
+            loadingRef.current = true;
+            if (streamerRef.current === connection)
+                streamerRef.current = null;
+            // The stream ended on its own; close the underlying connection so
+            // that it does not leak a cockpit HTTP connection per restart.
+            connection.close();
             view.write(_("Streaming disconnected"));
         }
     };
@@ -163,10 +171,12 @@ const ContainerLogs = ({ containerId, containerStatus, width, uid }: ContainerLo
         connection.monitor(client.VERSION + "containers/" + containerId +
                            `/logs?follow=true&stdout=true&stderr=true&tail=${LOGS_MAX_SIZE}`,
                            onStreamMessage, true)
-                .then(onStreamClose)
+                .then(() => onStreamClose(connection))
                 .catch(e => {
                     setErrorMessage(e.message ?? e.toString());
-                    streamerRef.current = null;
+                    if (streamerRef.current === connection)
+                        streamerRef.current = null;
+                    connection.close();
                 });
         streamerRef.current = connection;
         setErrorMessage("");

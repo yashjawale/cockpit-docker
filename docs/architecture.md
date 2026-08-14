@@ -159,7 +159,8 @@ via `WithDockerInfo` / `useDockerInfo()`.
   health, history, integration, used-by).
 - **Modals** — ContainerDeleteModal, ForceRemoveModal, ContainerRenameModal,
   ContainerCommitModal, ImageDeleteModal, ImageRunModal, ImageSearchModal,
-  CreateStackModal, PruneUnusedContainersModal, PruneUnusedImagesModal.
+  CreateStackModal, PruneUnusedContainersModal, PruneUnusedImagesModal,
+  PortMapModal.
 - **Misc** — Notification (toasts), RelativeTime, Volume, Env, PublishPort,
   ContainerHeader, StackActions, ContainerTerminal, ContainerLogs,
   ContainerHealthLogs, ContainerIntegration.

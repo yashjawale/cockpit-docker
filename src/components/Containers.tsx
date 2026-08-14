@@ -35,6 +35,7 @@ import ContainerCommitModal from './ContainerCommitModal.tsx';
 import CreateStackModal from './CreateStackModal.tsx';
 import ForceRemoveModal from './ForceRemoveModal.tsx';
 import { ImageRunModal } from './ImageRunModal.tsx';
+import PortMapModal from './PortMapModal.tsx';
 import PruneUnusedContainersModal from './PruneUnusedContainersModal.tsx';
 import { StackActions } from './StackActions.tsx';
 import * as client from '../lib/client.ts';
@@ -86,10 +87,11 @@ const localize_health = (state: string | undefined) => {
  * The kebab menu in the card header offering bulk start/stop actions for the
  * listed containers and the prune-unused-containers action.
  */
-const ContainerOverActions = ({ handlePruneUnusedContainers, handleStartAllContainers, handleStopAllContainers, unusedContainers, runningContainers, stoppedContainers }: {
+const ContainerOverActions = ({ handlePruneUnusedContainers, handleStartAllContainers, handleStopAllContainers, handleShowPortMap, unusedContainers, runningContainers, stoppedContainers }: {
     handlePruneUnusedContainers: () => void,
     handleStartAllContainers: () => void,
     handleStopAllContainers: () => void,
+    handleShowPortMap: () => void,
     unusedContainers: UnusedContainer[],
     runningContainers: number,
     stoppedContainers: number,
@@ -116,6 +118,15 @@ const ContainerOverActions = ({ handlePruneUnusedContainers, handleStartAllConta
             {_("Stop all containers")}
         </DropdownItem>,
         <Divider key="separator" />,
+        <DropdownItem
+            key="port-map"
+            id="port-map-button"
+            component="button"
+            onClick={() => handleShowPortMap()}
+        >
+            {_("View port map")}
+        </DropdownItem>,
+        <Divider key="separator-prune" />,
         <DropdownItem
             key="prune-unused-containers"
             id="prune-unused-containers-button"
@@ -488,6 +499,7 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
 
     const [width, setWidth] = useState(0);
     const [showPruneUnusedContainersModal, setShowPruneUnusedContainersModal] = useState(false);
+    const [showPortMapModal, setShowPortMapModal] = useState(false);
     const [stacks, setStacks] = useState<string[]>([]);
     const [highlightedContainers, setHighlightedContainers] = useState<Record<string, boolean>>({});
     const cardRef = useRef<HTMLDivElement>(null);
@@ -701,6 +713,10 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
 
     const onOpenPruneUnusedContainersDialog = () => {
         setShowPruneUnusedContainersModal(true);
+    };
+
+    const onShowPortMap = () => {
+        setShowPortMapModal(true);
     };
 
     /**
@@ -941,6 +957,7 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
                             handlePruneUnusedContainers={onOpenPruneUnusedContainersDialog}
                             handleStartAllContainers={startAllContainers}
                             handleStopAllContainers={stopAllContainers}
+                            handleShowPortMap={onShowPortMap}
                             runningContainers={runningContainers.length}
                             stoppedContainers={stoppedContainers.length}
                         />
@@ -1039,6 +1056,13 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
                         unusedContainers={unusedContainers}
                         onAddNotification={onAddNotification}
                         users={users}
+                    />}
+                    {showPortMapModal &&
+                    <PortMapModal
+                        close={() => setShowPortMapModal(false)}
+                        containers={containers}
+                        inactiveStacks={inactiveStacks}
+                        stacksOwner={stacksOwner}
                     />}
                 </CardBody>
             </Card>

@@ -133,6 +133,8 @@ export interface DockerNetworkSettings {
 /** Resource limits of a container */
 export interface DockerHostConfig {
     Memory?: number;
+    /** Configured host port bindings, keyed by container port/protocol */
+    PortBindings?: Record<string, DockerPortBinding[] | null>;
 }
 
 /** A Docker container as returned by the inspect endpoint */

@@ -130,6 +130,28 @@
     color: var(--pf-t--global--text--color--status--on-info--default);
 }
 
+/* Port map dialog: conflict and inactive-stack notices */
+.ct-portmap-conflict {
+    color: var(--pf-t--global--text--color--status--on-danger--default);
+    background-color: var(--pf-t--global--border--color--status--danger--default);
+    padding: 0 var(--pf-t--global--spacer--sm);
+    margin-block-start: var(--pf-t--global--spacer--xs);
+    border-radius: var(--pf-t--global--border--radius--small);
+
+    svg {
+        margin-inline-end: var(--pf-t--global--spacer--xs);
+        vertical-align: middle;
+    }
+}
+
+.ct-portmap-inactive {
+    color: var(--pf-t--global--text--color--subtle);
+}
+
+.ct-portmap-port {
+    white-space: nowrap;
+}
+
 /* Highlight a container row briefly when its state changes */
 .ct-status-changed {
     animation: ctStatusChanged 4s ease-in;

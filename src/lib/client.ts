@@ -457,3 +457,26 @@ export function composeAction(dir: string, action: "up" | "stop", uid: Uid): Pro
         err: "message",
     });
 }
+
+/**
+ * Read the normalized configuration of a docker-compose stack.
+ *
+ * Runs `docker compose config`, which merges the stack's compose and .env
+ * files into a single JSON document (see "docker compose config --format
+ * json"). The normalization resolves the short and long port syntax into the
+ * same shape and applies interpolation, so the returned object can be parsed
+ * without a YAML library in the browser. The stack does not need to be
+ * running; the promise rejects when the files cannot be read or parsed.
+ *
+ * @param dir Directory containing the stack's compose file
+ * @param uid The uid of the daemon owner, or null for the session user
+ * @returns A promise resolving to the normalized stack configuration
+ */
+export function composeConfig(dir: string, uid: Uid): Promise<JsonObject> {
+    return cockpit.spawn(["docker", "compose", "config", "--format", "json"], {
+        directory: dir,
+        superuser: getStacksSuperuser(uid),
+        err: "message",
+    })
+            .then(output => JSON.parse(output) as JsonObject);
+}

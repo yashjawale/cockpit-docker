@@ -14,7 +14,7 @@ import { DropdownItem } from '@patternfly/react-core/dist/esm/components/Dropdow
 import { ExpandableSection } from "@patternfly/react-core/dist/esm/components/ExpandableSection";
 import { Label } from "@patternfly/react-core/dist/esm/components/Label";
 import { Flex, FlexItem } from "@patternfly/react-core/dist/esm/layouts/Flex";
-import { SortByDirection } from '@patternfly/react-table';
+import { cellWidth, SortByDirection } from '@patternfly/react-table';
 import { KebabDropdown } from "cockpit-components-dropdown.jsx";
 import { useDialogs } from "dialogs.jsx";
 
@@ -415,7 +415,7 @@ const Images = ({ images, imageContainerList, onAddNotification, textFilter, own
     };
 
     const columnTitles: ListingTableColumnProps[] = [
-        { title: _("Image"), sortable: true, props: { width: 20 } },
+        { title: _("Image"), sortable: true, transforms: [cellWidth(20)] } as ListingTableColumnProps,
         { title: _("Owner"), sortable: true, props: { className: "ignore-pixels" } },
         { title: _("Created"), sortable: true, props: { className: "ignore-pixels", width: 15 } },
         { title: _("ID"), props: { className: "ignore-pixels" } },

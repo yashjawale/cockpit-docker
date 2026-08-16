@@ -19,7 +19,7 @@ import {
 } from '@patternfly/react-core/dist/esm/components/Modal';
 import { Toolbar, ToolbarContent, ToolbarItem } from "@patternfly/react-core/dist/esm/components/Toolbar";
 import { Flex } from "@patternfly/react-core/dist/esm/layouts/Flex";
-import { SortByDirection } from '@patternfly/react-table';
+import { cellWidth, SortByDirection } from '@patternfly/react-table';
 import { KebabDropdown } from "cockpit-components-dropdown.jsx";
 import { useDialogs } from "dialogs.jsx";
 
@@ -802,7 +802,7 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
     };
 
     const columnTitles: ListingTableColumnProps[] = [
-        { title: _("Container"), sortable: true, props: { width: 20 } },
+        { title: _("Container"), transforms: [cellWidth(20)], sortable: true } as ListingTableColumnProps,
         { title: _("Owner"), sortable: true },
         { title: _("CPU"), sortable: true, props: { className: 'ct-numeric-column' } },
         { title: _("Memory"), sortable: true, props: { className: 'ct-numeric-column' } },

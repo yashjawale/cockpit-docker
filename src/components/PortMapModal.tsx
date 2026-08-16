@@ -10,6 +10,7 @@
 import React, { useMemo, useState } from 'react';
 
 import { Alert } from "@patternfly/react-core/dist/esm/components/Alert";
+import { Content, ContentVariants } from "@patternfly/react-core/dist/esm/components/Content";
 import { DropdownItem } from '@patternfly/react-core/dist/esm/components/Dropdown/index.js';
 import {
     Modal, ModalBody, ModalHeader
@@ -613,8 +614,8 @@ const PortMapModal = ({ close, containers, inactiveStacks, stacksOwner }: {
                     sortMethod={sortRows}
                     sortBy={{ index: 0, direction: SortByDirection.asc }}
                     emptyCaption={includeInactive
-                        ? <h3 className="ct-portmap-empty">{_("No host ports are in use")}</h3>
-                        : <h3 className="ct-portmap-empty">{_("No containers publish any host port")}</h3>}
+                        ? <Content component={ContentVariants.h3}>{_("No host ports are in use")}</Content>
+                        : <Content component={ContentVariants.h3}>{_("No containers publish any host port")}</Content>}
                     emptyCaptionDetail={_("Use the display options in the dialog header to show the ports of stopped containers and inactive stacks.")}
                 />
             </ModalBody>

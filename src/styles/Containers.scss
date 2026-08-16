@@ -152,13 +152,6 @@
     white-space: nowrap;
 }
 
-/* Port map dialog: empty-state caption and the hint below it */
-.ct-portmap-empty {
-    font-size: var(--pf-t--global--font--size--heading--sm);
-    font-weight: var(--pf-t--global--font--weight--heading--default);
-    color: var(--pf-t--global--text--color--regular);
-}
-
 /* Highlight a container row briefly when its state changes */
 .ct-status-changed {
     animation: ctStatusChanged 4s ease-in;

@@ -616,7 +616,7 @@ const PortMapModal = ({ close, containers, inactiveStacks, stacksOwner }: {
                     emptyCaption={includeInactive
                         ? <Content component={ContentVariants.h3}>{_("No host ports are in use")}</Content>
                         : <Content component={ContentVariants.h3}>{_("No containers publish any host port")}</Content>}
-                    emptyCaptionDetail={_("Use the display options in the dialog header to show the ports of stopped containers and inactive stacks.")}
+                    emptyCaptionDetail={<span className="pf-v6-u-font-size-sm">{_("Use the display options in the dialog header to show the ports of stopped containers and inactive stacks.")}</span>}
                 />
             </ModalBody>
         </Modal>

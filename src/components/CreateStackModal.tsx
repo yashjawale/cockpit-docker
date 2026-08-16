@@ -169,7 +169,7 @@ const CreateStackModal = ({ projectName, initialCompose, initialEnv, uid, onStac
                             language={Language.plaintext}
                             code={env}
                             onChange={(value) => setEnv(value)}
-                            height="150px"
+                            height="300px"
                             isMinimapVisible={false}
                             isDarkTheme
                         />

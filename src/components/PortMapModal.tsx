@@ -4,16 +4,16 @@
  * Dialog listing the host ports currently in use, so users can pick free
  * ports when writing a compose file. The published ports of all containers
  * are shown; ports reserved by inactive (not yet started) stacks can be
- * included via a checkbox.
+ * included via the display options menu in the dialog header.
  */
 
 import React, { useMemo, useState } from 'react';
 
 import { Alert } from "@patternfly/react-core/dist/esm/components/Alert";
-import { Button } from "@patternfly/react-core/dist/esm/components/Button";
-import { Checkbox } from "@patternfly/react-core/dist/esm/components/Checkbox";
+import { Content, ContentVariants } from "@patternfly/react-core/dist/esm/components/Content";
+import { DropdownItem } from '@patternfly/react-core/dist/esm/components/Dropdown/index.js';
 import {
-    Modal, ModalBody, ModalFooter, ModalHeader
+    Modal, ModalBody, ModalHeader
 } from '@patternfly/react-core/dist/esm/components/Modal';
 import { SortByDirection } from "@patternfly/react-table";
 import { ExclamationTriangleIcon } from '@patternfly/react-icons';
@@ -21,6 +21,7 @@ import { EmptyStatePanel } from "cockpit-components-empty-state.tsx";
 
 import cockpit from 'cockpit';
 import { ListingTable } from "cockpit-components-table";
+import { KebabDropdown } from "cockpit-components-dropdown.jsx";
 import ipaddr from "ipaddr.js";
 
 import * as client from '../lib/client.ts';
@@ -452,8 +453,8 @@ const renderPorts = (group: PortEntry[]) => (
  * grouping is enabled, one row per container listing all its ports). Ports
  * reserved by stopped containers and by inactive (not yet started) stacks are
  * only loaded and shown once the "Include stopped containers and inactive
- * stacks" checkbox is enabled, because reading the stack files shells out to
- * `docker compose config` per stack.
+ * stacks" display option is enabled, because reading the stack files shells
+ * out to `docker compose config` per stack.
  */
 const PortMapModal = ({ close, containers, inactiveStacks, stacksOwner }: {
     close: () => void,
@@ -473,7 +474,7 @@ const PortMapModal = ({ close, containers, inactiveStacks, stacksOwner }: {
     /**
      * Load the port reservations of every inactive stack by running
      * `docker compose config` in its directory. Stacks whose files cannot be
-     * parsed are skipped and reported in a warning below the checkboxes.
+     * parsed are skipped and reported in a warning below the table.
      */
     const loadInactivePorts = () => {
         setInactiveLoading(true);
@@ -497,10 +498,10 @@ const PortMapModal = ({ close, containers, inactiveStacks, stacksOwner }: {
         });
     };
 
-    const onIncludeInactiveChange = (_event: React.FormEvent<HTMLInputElement>, checked: boolean) => {
-        setIncludeInactive(checked);
-        if (checked && inactiveServices === null && inactiveStacks.length > 0)
+    const onIncludeInactiveClick = () => {
+        if (!includeInactive && inactiveServices === null && inactiveStacks.length > 0)
             loadInactivePorts();
+        setIncludeInactive(!includeInactive);
     };
 
     const entries = useMemo(
@@ -565,23 +566,35 @@ const PortMapModal = ({ close, containers, inactiveStacks, stacksOwner }: {
             position="top" variant="large"
             aria-label={_("Port map")}
         >
-            <ModalHeader title={_("Port map")} />
+            <ModalHeader
+                title={_("Port map")}
+                help={
+                    <KebabDropdown
+                        toggleButtonId="port-map-options-dropdown"
+                        position="right"
+                        dropdownItems={[
+                            <DropdownItem
+                                key="include-inactive"
+                                hasCheckbox
+                                isSelected={includeInactive}
+                                onClick={onIncludeInactiveClick}
+                            >
+                                {_("Include stopped containers and inactive stacks")}
+                            </DropdownItem>,
+                            <DropdownItem
+                                key="group-containers"
+                                hasCheckbox
+                                isSelected={groupByStack}
+                                onClick={() => setGroupByStack(!groupByStack)}
+                            >
+                                {_("Group ports by container")}
+                            </DropdownItem>,
+                        ]}
+                    />
+                }
+            />
             <ModalBody>
                 <p>{_("Host ports in use by containers and stacks")}</p>
-                <Checkbox
-                    id="port-map-include-inactive"
-                    label={_("Include stopped containers and inactive stacks")}
-                    isChecked={includeInactive}
-                    onChange={onIncludeInactiveChange}
-                    body={_("Also show the host ports reserved by stopped containers and stacks that are not running yet.")}
-                />
-                <Checkbox
-                    id="port-map-group-containers"
-                    label={_("Group ports by container")}
-                    isChecked={groupByStack}
-                    onChange={(_event, checked) => setGroupByStack(checked)}
-                    body={_("Show one row per container, listing all the ports it occupies.")}
-                />
                 {inactiveErrors.length > 0 &&
                     <Alert
                         isInline
@@ -601,13 +614,11 @@ const PortMapModal = ({ close, containers, inactiveStacks, stacksOwner }: {
                     sortMethod={sortRows}
                     sortBy={{ index: 0, direction: SortByDirection.asc }}
                     emptyCaption={includeInactive
-                        ? _("No host ports are in use")
-                        : _("No containers publish any host port")}
+                        ? <Content component={ContentVariants.h3}>{_("No host ports are in use")}</Content>
+                        : <Content component={ContentVariants.h3}>{_("No containers publish any host port")}</Content>}
+                    emptyCaptionDetail={<span className="pf-v6-u-font-size-sm">{_("Use the display options in the dialog header to show the ports of stopped containers and inactive stacks.")}</span>}
                 />
             </ModalBody>
-            <ModalFooter>
-                <Button variant="link" onClick={close}>{_("Close")}</Button>
-            </ModalFooter>
         </Modal>
     );
 };

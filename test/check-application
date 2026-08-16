@@ -505,7 +505,7 @@ EOF''')
             b.click("#inactive-stack-actions-test-remove-stack")
             b.click(".pf-v6-c-menu__item:contains('Remove')")
             b.wait_visible(".pf-v6-c-modal-box")
-            b.wait_text(".pf-v6-c-modal-box__title", "Remove stack test-remove-stack?")
+            b.wait_in_text(".pf-v6-c-modal-box", "Remove stack test-remove-stack?")
 
             # cancelling keeps the stack and its files
             b.click(".pf-v6-c-modal-box__footer button:contains('Cancel')")

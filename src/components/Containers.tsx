@@ -14,6 +14,9 @@ import { Divider } from "@patternfly/react-core/dist/esm/components/Divider";
 import { DropdownItem } from '@patternfly/react-core/dist/esm/components/Dropdown/index.js';
 import { FormSelect, FormSelectOption } from "@patternfly/react-core/dist/esm/components/FormSelect";
 import { LabelGroup } from "@patternfly/react-core/dist/esm/components/Label";
+import {
+    Modal, ModalBody, ModalFooter, ModalHeader
+} from '@patternfly/react-core/dist/esm/components/Modal';
 import { Toolbar, ToolbarContent, ToolbarItem } from "@patternfly/react-core/dist/esm/components/Toolbar";
 import { Flex } from "@patternfly/react-core/dist/esm/layouts/Flex";
 import { SortByDirection } from '@patternfly/react-table';
@@ -144,6 +147,45 @@ const ContainerOverActions = ({ handlePruneUnusedContainers, handleStartAllConta
 };
 
 /**
+ * Confirmation dialog removing an inactive stack, i.e. permanently deleting
+ * its compose files from disk.
+ */
+const InactiveStackRemoveModal = ({ project, onRemove }: {
+    project: string,
+    onRemove: () => Promise<void>,
+}) => {
+    const Dialogs = useDialogs();
+    const [inProgress, setInProgress] = useState(false);
+    return (
+        <Modal
+            isOpen
+            position="top"
+            variant="medium"
+            onClose={() => Dialogs.close()}
+        >
+            <ModalHeader title={cockpit.format(_("Remove stack $0?"), project)} titleIconVariant="warning" />
+            <ModalBody>
+                <p>{_("Removing this stack will permanently delete its docker-compose.yml and .env files. The stack cannot be started again.")}</p>
+            </ModalBody>
+            <ModalFooter>
+                <Button
+                    variant="danger"
+                    isDisabled={inProgress}
+                    isLoading={inProgress}
+                    onClick={() => {
+                        setInProgress(true);
+                        onRemove().catch(() => setInProgress(false));
+                    }}
+                >
+                    {_("Remove")}
+                </Button>
+                <Button variant="link" isDisabled={inProgress} onClick={() => Dialogs.close()}>{_("Cancel")}</Button>
+            </ModalFooter>
+        </Modal>
+    );
+};
+
+/**
  * Actions of an inactive stack: start it through docker compose, edit its files
  * or remove its directory. Starting reloads the stack list so the stack moves
  * to the containers listing once its containers appear; removing reloads it so
@@ -191,13 +233,14 @@ const InactiveStackActions = ({ project, uid, onAddNotification, onStackRemoved 
      * the files on disk are deleted; the list is refreshed so the deleted
      * stack does not linger in the inactive stacks section.
      */
-    const removeStack = () => {
-        cockpit.spawn(["rm", "-rf", dir], { superuser, err: "message" })
+    const removeStack = (): Promise<void> => {
+        return cockpit.spawn(["rm", "-rf", dir], { superuser, err: "message" })
                 .then(onStackRemoved)
                 .catch(ex => {
                     const error = cockpit.format(_("Failed to remove stack $0"), project); // not-covered: OS error
                     onAddNotification({ type: 'danger', error, errorDetail: ex.message });
-                });
+                })
+                .finally(() => Dialogs.close());
     };
 
     return (
@@ -219,7 +262,7 @@ const InactiveStackActions = ({ project, uid, onAddNotification, onStackRemoved 
                     <DropdownItem key="edit" component="button" onClick={editStack}>
                         {_("Edit")}
                     </DropdownItem>,
-                    <DropdownItem key="remove" className="pf-m-danger btn-delete" component="button" onClick={removeStack}>
+                    <DropdownItem key="remove" className="pf-m-danger btn-delete" component="button" onClick={() => Dialogs.show(<InactiveStackRemoveModal project={project} onRemove={removeStack} />)}>
                         {_("Remove")}
                     </DropdownItem>,
                 ]}

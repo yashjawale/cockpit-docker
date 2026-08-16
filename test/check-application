@@ -499,10 +499,24 @@ EOF''')
             b.enter_page("/cockpit-docker")
             b.wait_in_text(".container-inactive-stacks", "test-remove-stack")
 
-            # removing the stack must make it disappear immediately; when it was
-            # the only stack the whole section disappears with it
+            # removing the stack asks for confirmation before deleting the
+            # compose files, and must make the stack disappear immediately;
+            # when it was the only stack the whole section disappears with it
             b.click("#inactive-stack-actions-test-remove-stack")
             b.click(".pf-v6-c-menu__item:contains('Remove')")
+            b.wait_visible(".pf-v6-c-modal-box")
+            b.wait_in_text(".pf-v6-c-modal-box", "Remove stack test-remove-stack?")
+
+            # cancelling keeps the stack and its files
+            b.click(".pf-v6-c-modal-box__footer button:contains('Cancel')")
+            b.wait_not_present(".pf-v6-c-modal-box")
+            b.wait_in_text(".container-inactive-stacks", "test-remove-stack")
+
+            # confirming the dialog deletes the stack files
+            b.click("#inactive-stack-actions-test-remove-stack")
+            b.click(".pf-v6-c-menu__item:contains('Remove')")
+            b.wait_visible(".pf-v6-c-modal-box")
+            b.click(".pf-v6-c-modal-box__footer button:contains('Remove')")
             b.wait_not_present("tr[data-row-name='test-remove-stack']")
         finally:
             m.execute("rm -rf /var/lib/cockpit-docker/stacks/test-remove-stack")

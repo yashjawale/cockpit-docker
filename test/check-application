@@ -796,9 +796,11 @@ cd /var/lib/cockpit-docker/stacks/test-portmap-stopped-stack && docker compose u
             b.wait_not_in_text("#port-map-table", "7080/tcp")
             b.wait_not_in_text("#port-map-table", "7090/tcp")
 
-            # including stopped containers and inactive stacks shows the
-            # reserved ports of everything not running, sorted by host port
-            b.set_checked("#port-map-include-inactive", True)
+            # including stopped containers and inactive stacks via the display
+            # options menu shows the reserved ports of everything not running,
+            # sorted by host port
+            b.click("#port-map-options-dropdown")
+            b.click(".pf-v6-c-menu__item:contains('Include stopped containers and inactive stacks')")
             wait_ports(["7070/tcp", "7070/tcp", "7070/tcp", "7080/tcp", "7090/tcp",
                         "9080/tcp", "9081/tcp", "9082/tcp"])
             wait_names([
@@ -820,7 +822,8 @@ cd /var/lib/cockpit-docker/stacks/test-portmap-stopped-stack && docker compose u
             b.wait_js_cond("document.querySelectorAll('#port-map-table .ct-portmap-conflict').length === 2")
 
             # grouping shows one row per container, with all of its ports
-            b.set_checked("#port-map-group-containers", True)
+            b.click("#port-map-options-dropdown")
+            b.click(".pf-v6-c-menu__item:contains('Group ports by container')")
             wait_ports(["7070/tcp", "7070/tcp", "7070/tcp", "7080/tcp", "7090/tcp",
                         "9080/tcp", "9081/tcp, 9082/tcp"])
             wait_names([
@@ -829,7 +832,8 @@ cd /var/lib/cockpit-docker/stacks/test-portmap-stopped-stack && docker compose u
             ])
 
             # ungrouping again and sorting by container name reorders the rows
-            b.set_checked("#port-map-group-containers", False)
+            b.click("#port-map-options-dropdown")
+            b.click(".pf-v6-c-menu__item:contains('Group ports by container')")
             b.click("#port-map-table thead th:nth-child(2) button")
             wait_names([
                 "api", "test-portmap-a", "test-portmap-b", "test-portmap-b",

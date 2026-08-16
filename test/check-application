@@ -15,7 +15,7 @@ class TestApplication(testlib.MachineCase):
     def testBasic(self):
         b = self.browser
 
-        self.login_and_go("/cockpit-docker")
+        self.login_and_go("/docker")
 
         # both main listing cards are shown
         b.wait_in_text("#containers-containers .pf-v6-c-card__title", "Containers")
@@ -33,7 +33,7 @@ class TestApplication(testlib.MachineCase):
         b = self.browser
         m = self.machine
 
-        self.login_and_go("/cockpit-docker")
+        self.login_and_go("/docker")
         b.click("#containers-images .pf-v6-c-expandable-section__toggle button")
         b.wait_in_text("#containers-images .image-name", "busybox")
 
@@ -41,25 +41,25 @@ class TestApplication(testlib.MachineCase):
             # start a container on the machine; it should show up in the UI
             m.execute("docker run -d --name test-cockpit-docker busybox sleep 10000")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_in_text(".container-name", "test-cockpit-docker")
             b.wait_visible("tr[data-row-name='0-test-cockpit-docker']")
         finally:
             # clean up so the shared machine stays in a pristine state
             m.execute("docker rm -f test-cockpit-docker")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_not_present(".container-name")
 
     def testContainerActions(self):
         b = self.browser
         m = self.machine
 
-        self.login_and_go("/cockpit-docker")
+        self.login_and_go("/docker")
         try:
             m.execute("docker run -d --name test-actions busybox sleep 10000")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_in_text("#containers-containers tr[data-row-name='0-test-actions']", "Running")
 
             # pause and resume the container from the row kebab menu
@@ -78,18 +78,18 @@ class TestApplication(testlib.MachineCase):
         finally:
             m.execute("docker rm -f test-actions")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_not_present(".container-name")
 
     def testContainerDetails(self):
         b = self.browser
         m = self.machine
 
-        self.login_and_go("/cockpit-docker")
+        self.login_and_go("/docker")
         try:
             m.execute("docker run -d --name test-details busybox sleep 10000")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_visible("#containers-containers tr[data-row-name='0-test-details']")
 
             # expand the row; the Details tab shows the image metadata
@@ -99,19 +99,19 @@ class TestApplication(testlib.MachineCase):
         finally:
             m.execute("docker rm -f test-details")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_not_present(".container-name")
 
     def testContainersFilters(self):
         b = self.browser
         m = self.machine
 
-        self.login_and_go("/cockpit-docker")
+        self.login_and_go("/docker")
         try:
             m.execute("docker run -d --name test-running busybox sleep 10000")
             m.execute("docker run --name test-exited busybox true")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
 
             # both containers are listed with their state
             b.wait_in_text("#containers-containers tr[data-row-name='0-test-running']", "Running")
@@ -133,18 +133,18 @@ class TestApplication(testlib.MachineCase):
         finally:
             m.execute("docker rm -f test-running test-exited")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_not_present(".container-name")
 
     def testContainerStopStartRestart(self):
         b = self.browser
         m = self.machine
 
-        self.login_and_go("/cockpit-docker")
+        self.login_and_go("/docker")
         try:
             m.execute("docker run -d --name test-restart busybox sleep 10000")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             row = "#containers-containers tr[data-row-name='0-test-restart']"
             b.wait_in_text(row, "Running")
 
@@ -179,18 +179,18 @@ class TestApplication(testlib.MachineCase):
         finally:
             m.execute("docker rm -f test-restart")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_not_present(".container-name")
 
     def testContainerRename(self):
         b = self.browser
         m = self.machine
 
-        self.login_and_go("/cockpit-docker")
+        self.login_and_go("/docker")
         try:
             m.execute("docker run --name test-oldname busybox true")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             row = "#containers-containers tr[data-row-name='0-test-oldname']"
             b.wait_in_text(row, "Exited")
 
@@ -203,24 +203,24 @@ class TestApplication(testlib.MachineCase):
             b.click("#btn-rename-dialog-container")
             b.wait_not_present(".pf-v6-c-modal-box")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_visible("#containers-containers tr[data-row-name='0-test-renamed']")
             b.wait_not_present("#containers-containers tr[data-row-name='0-test-oldname']")
         finally:
             m.execute("docker rm -f test-renamed test-oldname")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_not_present(".container-name")
 
     def testContainerForceDelete(self):
         b = self.browser
         m = self.machine
 
-        self.login_and_go("/cockpit-docker")
+        self.login_and_go("/docker")
         try:
             m.execute("docker run -d --name test-forcedelete busybox sleep 10000")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             row = "#containers-containers tr[data-row-name='0-test-forcedelete']"
             b.wait_in_text(row, "Running")
 
@@ -232,23 +232,23 @@ class TestApplication(testlib.MachineCase):
             b.click(".pf-v6-c-modal-box__footer button:contains('Force delete')")
             b.wait_not_present(".pf-v6-c-modal-box")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_not_present("#containers-containers tr[data-row-name='0-test-forcedelete']")
         finally:
             m.execute("docker rm -f test-forcedelete")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_not_present(".container-name")
 
     def testContainerCommit(self):
         b = self.browser
         m = self.machine
 
-        self.login_and_go("/cockpit-docker")
+        self.login_and_go("/docker")
         try:
             m.execute("docker run -d --name test-commit busybox sleep 10000")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             row = "#containers-containers tr[data-row-name='0-test-commit']"
             b.wait_visible(row)
 
@@ -265,26 +265,26 @@ class TestApplication(testlib.MachineCase):
             b.click(".btn-ctr-commit")
             b.wait_not_present(".pf-v6-c-modal-box")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.click("#containers-images .pf-v6-c-expandable-section__toggle button")
             b.wait_visible("#containers-images tr[data-row-name='0-test-commit-image:latest']")
         finally:
             m.execute("docker rmi test-commit-image:latest || true")
             m.execute("docker rm -f test-commit")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_not_present(".container-name")
 
     def testContainerIntegration(self):
         b = self.browser
         m = self.machine
 
-        self.login_and_go("/cockpit-docker")
+        self.login_and_go("/docker")
         try:
             m.execute("docker run -d --name test-integration -p 8080:80 "
                       "-e FOO=bar -v /tmp/hostvol:/data busybox sleep 10000")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             row = "#containers-containers tr[data-row-name='0-test-integration']"
             b.wait_visible(row)
 
@@ -299,14 +299,14 @@ class TestApplication(testlib.MachineCase):
         finally:
             m.execute("docker rm -f test-integration")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_not_present(".container-name")
 
     def testPortRanges(self):
         b = self.browser
         m = self.machine
 
-        self.login_and_go("/cockpit-docker")
+        self.login_and_go("/docker")
         try:
             # consecutive container ports are collapsed into a single range in
             # the Integration tab, even when the daemon reports an interleaved
@@ -314,7 +314,7 @@ class TestApplication(testlib.MachineCase):
             m.execute("docker run -d --name test-ports -p 8080:80 -p 8081:81 "
                       "-p 8080:80/udp busybox sleep 10000")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             row = "#containers-containers tr[data-row-name='0-test-ports']"
             b.wait_visible(row)
 
@@ -325,19 +325,19 @@ class TestApplication(testlib.MachineCase):
         finally:
             m.execute("docker rm -f test-ports")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_not_present(".container-name")
 
     def testContainerHealth(self):
         b = self.browser
         m = self.machine
 
-        self.login_and_go("/cockpit-docker")
+        self.login_and_go("/docker")
         try:
             m.execute("docker run -d --name test-health --health-cmd='true' "
                       "--health-interval=1s --health-retries=3 --health-timeout=1s busybox sleep 10000")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             row = "#containers-containers tr[data-row-name='0-test-health']"
             b.wait_visible(row)
 
@@ -350,19 +350,19 @@ class TestApplication(testlib.MachineCase):
         finally:
             m.execute("docker rm -f test-health")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_not_present(".container-name")
 
     def testContainerPrune(self):
         b = self.browser
         m = self.machine
 
-        self.login_and_go("/cockpit-docker")
+        self.login_and_go("/docker")
         try:
             m.execute("docker run --name test-prune-a busybox true")
             m.execute("docker run --name test-prune-b busybox true")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_visible("#containers-containers tr[data-row-name='0-test-prune-a']")
 
             # prune the stopped containers from the card header menu
@@ -373,27 +373,27 @@ class TestApplication(testlib.MachineCase):
             b.click("#btn-img-delete")
             b.wait_not_present(".pf-v6-c-modal-box")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_not_present("#containers-containers tr[data-row-name='0-test-prune-a']")
             b.wait_not_present("#containers-containers tr[data-row-name='0-test-prune-b']")
         finally:
             m.execute("docker rm -f test-prune-a test-prune-b")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_not_present(".container-name")
 
     def testStartStopAll(self):
         b = self.browser
         m = self.machine
 
-        self.login_and_go("/cockpit-docker")
+        self.login_and_go("/docker")
         try:
             m.execute("docker run -d --name test-bulk-a busybox sleep 10000")
             m.execute("docker run -d --name test-bulk-b busybox sleep 10000")
             # a container that was created but never started
             m.execute("docker create --name test-bulk-c busybox sleep 10000")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_in_text("#containers-containers tr[data-row-name='0-test-bulk-a']", "Running")
             b.wait_in_text("#containers-containers tr[data-row-name='0-test-bulk-b']", "Running")
             b.wait_in_text("#containers-containers tr[data-row-name='0-test-bulk-c']", "Created")
@@ -416,14 +416,14 @@ class TestApplication(testlib.MachineCase):
         finally:
             m.execute("docker rm -f test-bulk-a test-bulk-b test-bulk-c")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_not_present(".container-name")
 
     def testImageCreateRun(self):
         b = self.browser
         m = self.machine
 
-        self.login_and_go("/cockpit-docker")
+        self.login_and_go("/docker")
         try:
             b.click("#containers-images .pf-v6-c-expandable-section__toggle button")
             b.wait_visible("#containers-images .image-name")
@@ -438,19 +438,19 @@ class TestApplication(testlib.MachineCase):
             b.click("#create-image-create-run-btn")
             b.wait_not_present(".pf-v6-c-modal-box")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_in_text("#containers-containers tr[data-row-name='0-test-from-image']", "Running")
         finally:
             m.execute("docker rm -f test-from-image")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_not_present(".container-name")
 
     def testCreateStackDialog(self):
         b = self.browser
         m = self.machine
 
-        self.login_and_go("/cockpit-docker")
+        self.login_and_go("/docker")
         try:
             # opening the create-stack dialog from the containers toolbar
             b.click("#containers-containers-create-stack-btn")
@@ -471,21 +471,21 @@ class TestApplication(testlib.MachineCase):
             b.click("#create-stack-dialog-create-btn")
             b.wait_not_present(".pf-v6-c-modal-box")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_in_text(".container-inactive-stacks", "test-ui-stack")
             b.wait_visible("tr[data-row-name='test-ui-stack']")
         finally:
             # remove the stack directory created by the dialog
             m.execute("rm -rf /var/lib/cockpit-docker/stacks/test-ui-stack")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_not_present(".container-inactive-stacks")
 
     def testRemoveInactiveStack(self):
         b = self.browser
         m = self.machine
 
-        self.login_and_go("/cockpit-docker")
+        self.login_and_go("/docker")
         try:
             # create an inactive stack on disk, so it shows up in the listing
             m.execute('''mkdir -p /var/lib/cockpit-docker/stacks/test-remove-stack
@@ -496,7 +496,7 @@ services:
     command: ["sleep", "3600"]
 EOF''')
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_in_text(".container-inactive-stacks", "test-remove-stack")
 
             # removing the stack asks for confirmation before deleting the
@@ -521,7 +521,7 @@ EOF''')
         finally:
             m.execute("rm -rf /var/lib/cockpit-docker/stacks/test-remove-stack")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_not_present(".container-inactive-stacks")
 
     def testStackLifecycle(self):
@@ -537,9 +537,9 @@ services:
     command: ["sleep", "3600"]
 EOF''')
 
-        self.login_and_go("/cockpit-docker")
+        self.login_and_go("/docker")
         b.reload()
-        b.enter_page("/cockpit-docker")
+        b.enter_page("/docker")
         try:
             # the not-yet-started stack is listed under inactive stacks
             b.wait_in_text(".container-inactive-stacks", "test-stack")
@@ -582,7 +582,7 @@ EOF''')
             # the containers are force-deleted, their removal cascades through
             # the event stream; reload for a deterministic listing
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_in_text(".container-inactive-stacks", "test-stack")
         finally:
             # bring down any leftover containers and remove the stack files
@@ -590,13 +590,13 @@ EOF''')
                       "docker compose down --remove-orphans >/dev/null 2>&1 || true")
             m.execute("rm -rf /var/lib/cockpit-docker/stacks/test-stack")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_not_present(".container-inactive-stacks")
 
     def testImages(self):
         b = self.browser
 
-        self.login_and_go("/cockpit-docker")
+        self.login_and_go("/docker")
 
         # the image listing is collapsed by default; expand it
         b.click("#containers-images .pf-v6-c-expandable-section__toggle button")
@@ -616,7 +616,7 @@ EOF''')
     def testImageDetails(self):
         b = self.browser
 
-        self.login_and_go("/cockpit-docker")
+        self.login_and_go("/docker")
         b.click("#containers-images .pf-v6-c-expandable-section__toggle button")
         b.wait_visible("#containers-images .image-name")
 
@@ -635,7 +635,7 @@ EOF''')
     def testImageRunDialog(self):
         b = self.browser
 
-        self.login_and_go("/cockpit-docker")
+        self.login_and_go("/docker")
         b.click("#containers-images .pf-v6-c-expandable-section__toggle button")
         b.wait_visible("#containers-images .image-name")
 
@@ -651,7 +651,7 @@ EOF''')
     def testPortValidation(self):
         b = self.browser
 
-        self.login_and_go("/cockpit-docker")
+        self.login_and_go("/docker")
         b.click("#containers-images .pf-v6-c-expandable-section__toggle button")
         b.wait_visible("#containers-images .image-name")
         b.click("#containers-images .ct-container-create")
@@ -679,7 +679,7 @@ EOF''')
         b = self.browser
         m = self.machine
 
-        self.login_and_go("/cockpit-docker")
+        self.login_and_go("/docker")
         try:
             b.click("#containers-images .pf-v6-c-expandable-section__toggle button")
             b.wait_visible("#containers-images .image-name")
@@ -711,7 +711,7 @@ EOF''')
         finally:
             m.execute("docker rm -f test-portbind || true")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_not_present(".container-name")
 
     def testPortMap(self):
@@ -731,7 +731,7 @@ EOF''')
                   " === JSON.stringify(" + testlib.jsquote(expected) + ")")
             b.wait_js_cond(js)
 
-        self.login_and_go("/cockpit-docker")
+        self.login_and_go("/docker")
         try:
             # three running containers with published host ports; the names sort
             # differently than the ports, so both sort orders are observable
@@ -773,7 +773,7 @@ services:
 EOF
 cd /var/lib/cockpit-docker/stacks/test-portmap-stopped-stack && docker compose up -d && docker compose stop''')
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_visible("tr[data-row-name='0-test-portmap-a']")
 
             # open the port map from the containers header menu
@@ -848,19 +848,19 @@ cd /var/lib/cockpit-docker/stacks/test-portmap-stopped-stack && docker compose u
                       "/var/lib/cockpit-docker/stacks/test-portmap-stack2 "
                       "/var/lib/cockpit-docker/stacks/test-portmap-stopped-stack")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_not_present(".container-name")
 
     def testImageDeleteTag(self):
         b = self.browser
         m = self.machine
 
-        self.login_and_go("/cockpit-docker")
+        self.login_and_go("/docker")
         try:
             # add an extra tag to the pre-pulled busybox image
             m.execute("docker tag busybox test-extra:latest")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.click("#containers-images .pf-v6-c-expandable-section__toggle button")
             row = "#containers-images tr[data-row-name='0-busybox:latest']"
             b.wait_visible(row)
@@ -879,7 +879,7 @@ cd /var/lib/cockpit-docker/stacks/test-portmap-stopped-stack && docker compose u
             b.click("#btn-img-delete")
             b.wait_not_present(".pf-v6-c-modal-box")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.click("#containers-images .pf-v6-c-expandable-section__toggle button")
             b.wait_visible("#containers-images tr[data-row-name='0-busybox:latest']")
 
@@ -895,18 +895,18 @@ cd /var/lib/cockpit-docker/stacks/test-portmap-stopped-stack && docker compose u
             # make sure the extra tag is gone and busybox stays around
             m.execute("docker rmi test-extra:latest || true")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_visible("#containers-images")
 
     def testImageDeleteInUse(self):
         b = self.browser
         m = self.machine
 
-        self.login_and_go("/cockpit-docker")
+        self.login_and_go("/docker")
         try:
             m.execute("docker run -d --name test-imguse busybox sleep 10000")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.click("#containers-images .pf-v6-c-expandable-section__toggle button")
             row = "#containers-images tr[data-row-name='0-busybox:latest']"
             b.wait_visible(row)
@@ -926,14 +926,14 @@ cd /var/lib/cockpit-docker/stacks/test-portmap-stopped-stack && docker compose u
         finally:
             m.execute("docker rm -f test-imguse")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_not_present(".container-name")
 
     def testImageUpdates(self):
         b = self.browser
         m = self.machine
 
-        self.login_and_go("/cockpit-docker")
+        self.login_and_go("/docker")
         try:
             # A locally built image has no registry digest recorded, so the
             # update check never runs for it and no "Update available" badge is
@@ -941,7 +941,7 @@ cd /var/lib/cockpit-docker/stacks/test-portmap-stopped-stack && docker compose u
             # registry lookup fails (no buildx, no network, unknown registry).
             m.execute("docker build -t update-badgetest:latest - <<'EOF'\nFROM busybox\nEOF")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.click("#containers-images .pf-v6-c-expandable-section__toggle button")
             row = "#containers-images tr[data-row-name='0-update-badgetest:latest']"
             b.wait_visible(row)
@@ -952,14 +952,14 @@ cd /var/lib/cockpit-docker/stacks/test-portmap-stopped-stack && docker compose u
             # shared nondestructive VM is left in a pristine state
             m.execute("docker image prune -f || true")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_visible("#containers-images")
 
     def testImageUpdateAvailable(self):
         b = self.browser
         m = self.machine
 
-        self.login_and_go("/cockpit-docker")
+        self.login_and_go("/docker")
         try:
             # A registry on localhost acts as a deterministic stand-in for
             # Docker Hub, so the test does not depend on external images or
@@ -987,7 +987,7 @@ cd /var/lib/cockpit-docker/stacks/test-portmap-stopped-stack && docker compose u
             m.execute("docker tag localhost:5000/updtest:v1backup localhost:5000/updtest:latest")
 
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.click("#containers-images .pf-v6-c-expandable-section__toggle button")
             row = "#containers-images tr[data-row-name='0-localhost:5000/updtest:latest']"
             b.wait_visible(row)
@@ -1007,7 +1007,7 @@ cd /var/lib/cockpit-docker/stacks/test-portmap-stopped-stack && docker compose u
             # shared nondestructive VM is left in a pristine state
             m.execute("docker image prune -f || true")
             b.reload()
-            b.enter_page("/cockpit-docker")
+            b.enter_page("/docker")
             b.wait_visible("#containers-images")
 
 
@@ -1023,7 +1023,7 @@ class TestDockerNotInstalled(testlib.MachineCase):
         m.execute("systemctl stop docker docker.socket")
         m.execute("mv /usr/bin/docker /usr/bin/docker.example")
 
-        self.login_and_go("/cockpit-docker")
+        self.login_and_go("/docker")
 
         b.wait_in_text(".pf-v6-c-empty-state__title", "Docker is not installed")
         b.wait_in_text(".pf-v6-c-empty-state__body", "Docker is not installed on this system.")

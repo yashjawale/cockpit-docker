@@ -12,7 +12,7 @@ HTTP API over its unix socket (no `docker` CLI required for containers/images;
 stacks do use `docker compose`, see below).
 
 The module is a client-side web application: a TypeScript/React SPA built by
-esbuild into `dist/` and served by Cockpit from `/cockpit-docker`.
+esbuild into `dist/` and served by Cockpit from `/docker`.
 
 ## High-level data flow
 

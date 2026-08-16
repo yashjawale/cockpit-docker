@@ -60,7 +60,7 @@ this manually:
 
 ```
 mkdir -p ~/.local/share/cockpit
-ln -s `pwd`/dist ~/.local/share/cockpit/cockpit-docker
+ln -s `pwd`/dist ~/.local/share/cockpit/docker
 ```
 
 After changing the code and running `make` again, reload the Cockpit page in
@@ -91,7 +91,7 @@ set to upload code changes to `~/.local/share/cockpit/` instead of
 To "uninstall" the locally installed version, run `make devel-uninstall`, or
 remove manually the symlink:
 
-    rm ~/.local/share/cockpit/cockpit-docker
+    rm ~/.local/share/cockpit/docker
 
 # Running eslint
 

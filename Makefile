@@ -1,8 +1,9 @@
 # extract name from package.json
 PACKAGE_NAME := $(shell awk '/"name":/ {gsub(/[",]/, "", $$2); print $$2}' package.json)
+# directory name under /usr/share/cockpit, which becomes the URL path of the module
+WEB_DIR := docker
 # this project's package name already carries the cockpit- prefix (e.g. its
-# cockpit URL is /cockpit-docker), unlike upstream modules which use a bare
-# name and get the prefix added here
+# RPM name is cockpit-docker), unlike upstream modules which use a bare name
 RPM_NAME := $(if $(filter cockpit-%,$(PACKAGE_NAME)),$(PACKAGE_NAME),cockpit-$(PACKAGE_NAME))
 VERSION := $(shell T=$$(git describe 2>/dev/null) || T=1; echo $$T | tr '-' '.')
 ifeq ($(TEST_OS),)
@@ -120,8 +121,8 @@ clean:
 	rm -f metafile.json runtime-npm-modules.txt
 
 install: $(DIST_TEST) po/LINGUAS
-	mkdir -p $(DESTDIR)$(PREFIX)/share/cockpit/$(PACKAGE_NAME)
-	cp -r dist/* $(DESTDIR)$(PREFIX)/share/cockpit/$(PACKAGE_NAME)
+	mkdir -p $(DESTDIR)$(PREFIX)/share/cockpit/$(WEB_DIR)
+	cp -r dist/* $(DESTDIR)$(PREFIX)/share/cockpit/$(WEB_DIR)
 	mkdir -p $(DESTDIR)$(PREFIX)/share/metainfo/
 	msgfmt --xml -d po \
 		--template $(APPSTREAMFILE) \
@@ -130,12 +131,12 @@ install: $(DIST_TEST) po/LINGUAS
 # this requires a built source tree and avoids having to install anything system-wide
 devel-install: $(DIST_TEST)
 	mkdir -p ~/.local/share/cockpit
-	ln -s `pwd`/dist ~/.local/share/cockpit/$(PACKAGE_NAME)
+	ln -s `pwd`/dist ~/.local/share/cockpit/$(WEB_DIR)
 
 # assumes that there was symlink set up using the above devel-install target,
 # and removes it
 devel-uninstall:
-	rm -f ~/.local/share/cockpit/$(PACKAGE_NAME)
+	rm -f ~/.local/share/cockpit/$(WEB_DIR)
 
 print-version:
 	@echo "$(VERSION)"

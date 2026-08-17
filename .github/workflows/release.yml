@@ -149,7 +149,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install build dependencies
-        run: dnf install -y rpm-build make gettext libappstream-glib
+        run: dnf install -y rpm-build make gettext libappstream-glib git gh
 
       - name: Download source artifacts
         uses: actions/download-artifact@v8

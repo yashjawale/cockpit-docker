@@ -28,7 +28,7 @@ import * as client from '../lib/client.ts';
 
 import type { ListingTableColumnProps, ListingTableRowProps } from "cockpit-components-table";
 import type { JsonObject } from 'cockpit';
-import type { DockerContainer, DockerPortBinding, Uid } from '../lib/types.ts';
+import type { DockerContainer, DockerPortBinding } from '../lib/types.ts';
 
 const _ = cockpit.gettext;
 
@@ -456,14 +456,12 @@ const renderPorts = (group: PortEntry[]) => (
  * stacks" display option is enabled, because reading the stack files shells
  * out to `docker compose config` per stack.
  */
-const PortMapModal = ({ close, containers, inactiveStacks, stacksOwner }: {
+const PortMapModal = ({ close, containers, inactiveStacks }: {
     close: () => void,
     /** All containers across owners */
     containers: Record<string, DockerContainer>,
     /** Project names of stacks without any container, i.e. still in file */
     inactiveStacks: string[],
-    /** Owner of the daemon the stacks belong to, to resolve their directory */
-    stacksOwner: Uid,
 }) => {
     const [includeInactive, setIncludeInactive] = useState(false);
     const [groupByStack, setGroupByStack] = useState(false);
@@ -480,8 +478,8 @@ const PortMapModal = ({ close, containers, inactiveStacks, stacksOwner }: {
         setInactiveLoading(true);
         setInactiveErrors([]);
         Promise.all(inactiveStacks.map(project => {
-            const dir = `${client.getStacksDir(stacksOwner)}/${project}`;
-            return client.composeConfig(dir, stacksOwner)
+            const dir = `${client.getStacksDir()}/${project}`;
+            return client.composeConfig(dir)
                     .then(config => ({ project, services: extractComposeServices(config), error: "" }))
                     .catch(ex => ({ project, services: [], error: `${project}: ${ex.message}` }));
         })).then(results => {

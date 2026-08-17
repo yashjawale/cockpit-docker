@@ -351,10 +351,18 @@ export const checkImageUpdate = (ref: string): Promise<string> =>
 /**
  * Remove all unused images, not just dangling ones.
  *
+ * The Docker API removes either dangling images (dangling=true) or unused
+ * images that are still tagged (dangling=false) in a single call, so both
+ * kinds are pruned to free all disk space of unused images.
+ *
  * @param con An established Docker API connection
  * @returns A promise resolving to the report of freed disk space
  */
-export const pruneUnusedImages = (con: Connection) => dockerJson(con, "images/prune", "POST", { filters: JSON.stringify({ dangling: ["false"] }) });
+export const pruneUnusedImages = (con: Connection) =>
+    Promise.all([
+        dockerJson(con, "images/prune", "POST", { filters: JSON.stringify({ dangling: ["true"] }) }),
+        dockerJson(con, "images/prune", "POST", { filters: JSON.stringify({ dangling: ["false"] }) }),
+    ]);
 
 /**
  * Return the commit history of an image.

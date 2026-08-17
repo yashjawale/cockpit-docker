@@ -93,6 +93,15 @@ const isLocalImage = (image: DockerImage): boolean => {
 };
 
 /**
+ * Whether an image has no real repository tag, i.e. it is an intermediate
+ * build layer (RepoTags null) or a dangling image left behind by an untag
+ * ("<none>:<none>"). Such images are hidden from the listing unless the
+ * "Show intermediate images" toggle is enabled, and cannot be re-pulled.
+ */
+const isNamelessImage = (image: DockerImage): boolean =>
+    (image.RepoTags ?? []).every(tag => tag === "<none>:<none>");
+
+/**
  * Detect images whose mutable ":latest" tag has a newer version available in
  * its registry.
  *
@@ -282,7 +291,7 @@ const Images = ({ images, imageContainerList, onAddNotification, textFilter, own
         // Images tagged through the localhost/ pseudo-registry cannot be re-pulled;
         // pull the first tag that actually refers to a registry. Nameless
         // (intermediate) images are skipped entirely.
-        const pullableTag = (image.RepoTags ?? []).find(tag => !tag.startsWith("localhost/"));
+        const pullableTag = (image.RepoTags ?? []).find(tag => !tag.startsWith("localhost/") && tag !== "<none>:<none>");
         if (pullableTag)
             downloadImage(pullableTag, null, _con_for(image));
         else
@@ -442,7 +451,7 @@ const Images = ({ images, imageContainerList, onAddNotification, textFilter, own
             }
 
             const tags = image.RepoTags || [];
-            if (!intermediateOpened && tags.length < 1)
+            if (!intermediateOpened && isNamelessImage(image))
                 return false;
             if (textFilter.length > 0)
                 return tags.some(tag => tag.toLowerCase().indexOf(textFilter.toLowerCase()) >= 0);
@@ -487,7 +496,7 @@ const Images = ({ images, imageContainerList, onAddNotification, textFilter, own
     if (images) {
         interim = Object.keys(images).some(id => {
             // Intermediate image does not have any tags
-            if (images[id].RepoTags && images[id].RepoTags.length > 0)
+            if (!isNamelessImage(images[id]))
                 return false;
 
             // Only filter by selected user
@@ -742,8 +751,8 @@ const ImageActions = ({ con, image, localImages, onAddNotification, users, downl
             key={`${image.Id}pull`}
             component="button"
             onClick={pullImage}
-            isDisabled={isLocalImage(image)}
-            isAriaDisabled={isLocalImage(image)}
+            isDisabled={isLocalImage(image) || isNamelessImage(image)}
+            isAriaDisabled={isLocalImage(image) || isNamelessImage(image)}
         >
             {_("Pull")}
         </DropdownItem>,

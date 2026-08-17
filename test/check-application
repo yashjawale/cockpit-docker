@@ -632,6 +632,47 @@ EOF''')
         b.click("#containers-images .pf-v6-c-tabs__item button:contains('History')")
         b.wait_in_text("#containers-images .ct-listing-panel-body .pf-v6-c-table", "Created by")
 
+    def testIntermediateImages(self):
+        b = self.browser
+        m = self.machine
+
+        self.login_and_go("/docker")
+        try:
+            # a bare docker commit produces an image without a name, shown as
+            # <none>:<none>; it is a dangling image that nothing references
+            m.execute("docker run -d --name test-intermediate busybox sleep 10000")
+            m.execute("docker commit test-intermediate")
+            b.reload()
+            b.enter_page("/docker")
+            b.click("#containers-images .pf-v6-c-expandable-section__toggle button")
+
+            # nameless images are hidden behind the "Show intermediate images" toggle
+            b.wait_not_present("#containers-images tr[data-row-name='0-<none>:<none>']")
+            b.click("#containers-images button:contains('Show intermediate images')")
+            b.wait_visible("#containers-images tr[data-row-name='0-<none>:<none>']")
+            b.wait_in_text("#containers-images tr[data-row-name='0-<none>:<none>']", "unused")
+
+            # the prune dialog lists the dangling image, and pruning removes it
+            b.click("#image-actions-dropdown")
+            b.click("#prune-unused-images-button")
+            b.wait_visible(".pf-v6-c-modal-box")
+            b.wait_in_text(".pf-v6-c-modal-box", "<none>:<none>")
+            b.click("#btn-img-delete")
+            b.wait_not_present(".pf-v6-c-modal-box")
+            b.reload()
+            b.enter_page("/docker")
+            b.click("#containers-images .pf-v6-c-expandable-section__toggle button")
+            b.wait_not_present("#containers-images tr[data-row-name='0-<none>:<none>']")
+        finally:
+            m.execute("docker rm -f test-intermediate || true")
+            m.execute("docker image prune -f || true")
+            # pruning also removed the unused busybox image; restore it so the
+            # shared nondestructive VM stays pristine
+            m.execute("docker pull busybox:latest || true")
+            b.reload()
+            b.enter_page("/docker")
+            b.wait_visible("#containers-images")
+
     def testImageRunDialog(self):
         b = self.browser
 

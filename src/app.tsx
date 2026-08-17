@@ -488,6 +488,7 @@ const Application = () => {
         case 'detach':
         case 'exec_create':
         case 'exec_detach':
+        case 'exec_die':
         case 'exec_start':
         case 'export':
         case 'resize':
@@ -544,10 +545,16 @@ const Application = () => {
     /**
      * Dispatch an event stream message to the container or image handler.
      *
+     * Docker appends extra information to some event actions after a colon,
+     * e.g. "health_status: healthy" or "exec_create: /bin/sh -c true". Strip
+     * the suffix so the handlers below match on the bare action name.
+     *
      * @param event The event stream message
      * @param con   Connection of the daemon that emitted the event
      */
     const handleEvent = (event: DockerEvent, con: Connection) => {
+        event.Action = event.Action.split(':')[0];
+
         switch (event.Type) {
         case 'container':
             handleContainerEvent(event, con);

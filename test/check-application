@@ -334,14 +334,15 @@ class TestApplication(testlib.MachineCase):
 
         self.login_and_go("/docker")
         try:
-            m.execute("docker run -d --name test-health --health-cmd='true' "
-                      "--health-interval=1s --health-retries=3 --health-timeout=1s busybox sleep 10000")
-            b.reload()
-            b.enter_page("/docker")
+            # start a container with a slow health check so the UI has time to
+            # observe the "Checking health" -> "Healthy" transition without reload
+            m.execute("docker run -d --name test-health --health-cmd='sleep 2' "
+                      "--health-interval=1s --health-retries=3 --health-timeout=3s busybox sleep 10000")
             row = "#containers-containers tr[data-row-name='0-test-health']"
             b.wait_visible(row)
 
-            # the container becomes healthy shortly after starting
+            # the label updates live while the health check runs
+            b.wait_in_text(row, "Checking health")
             b.wait_in_text(row, "Healthy")
 
             # the Health check tab is offered in the expanded row

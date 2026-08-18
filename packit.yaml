@@ -24,9 +24,15 @@ actions:
 jobs:
   - job: tests
     trigger: pull_request
+    # Pin the targets instead of fedora-all: a freshly released Fedora (e.g.
+    # 45) is not yet ready in COPR/Packit and Docker does not publish packages
+    # for it, which breaks the checks until the ecosystem catches up. Bump
+    # these once the new release is supported.
     targets: &test_targets
-      - fedora-all
-      - fedora-latest-stable-aarch64
+      - fedora-43
+      - fedora-44
+      - fedora-44-aarch64
+      - fedora-rawhide
       - centos-stream-9
       - centos-stream-9-aarch64
       - centos-stream-10
@@ -49,7 +55,9 @@ jobs:
     project: cockpit-docker
     preserve_project: True
     targets:
-      - fedora-all
+      - fedora-43
+      - fedora-44
+      - fedora-rawhide
       - centos-stream-9-x86_64
 
   # Build releases in Fedora: https://packit.dev/docs/configuration/#propose_downstream

@@ -176,6 +176,4 @@ jobs:
 
       - name: Attach package to the release
         if: env.DRY_RUN != 'true'
-        run: |
-          TAG_VERSION="$(git describe --tags)"
-          gh release upload "${TAG_VERSION}" ~/rpmbuild/RPMS/noarch/*.rpm --clobber
+        run: gh release upload "${{ github.ref_name }}" ~/rpmbuild/RPMS/noarch/*.rpm --clobber

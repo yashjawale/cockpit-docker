@@ -428,8 +428,12 @@ export function listStacks(): Promise<string[]> {
             .catch(() => []);
 }
 
-/** Error message that the docker CLI prints when it cannot reach the daemon socket */
-const DOCKER_SOCKET_PERMISSION_DENIED = /permission denied while trying to connect to the docker daemon socket/i;
+/**
+ * Error message that the docker CLI prints when it cannot reach the daemon
+ * socket. Plain `docker` commands say "Docker daemon socket", while the
+ * `docker compose` plugin says "docker API"; match both.
+ */
+const DOCKER_SOCKET_PERMISSION_DENIED = /permission denied while trying to connect to the docker (daemon socket|api)/i;
 
 /**
  * Run a docker compose command from the given directory.

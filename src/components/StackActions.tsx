@@ -174,8 +174,8 @@ export const StackActions = ({ con, containers, containersStats, onAddNotificati
             setEditAvailable(false);
             return;
         }
-        const stacksDir = client.getStacksDir(con.uid);
-        cockpit.file(`${stacksDir}/${project}/docker-compose.yml`, { superuser: client.getStacksSuperuser(con.uid) })
+        const stacksDir = client.getStacksDir();
+        cockpit.file(`${stacksDir}/${project}/docker-compose.yml`)
                 .read()
                 .then(content => setEditAvailable(content !== null))
                 .catch(() => setEditAvailable(false));
@@ -258,17 +258,16 @@ export const StackActions = ({ con, containers, containersStats, onAddNotificati
     const editStack = () => {
         if (!project)
             return;
-        const dir = `${client.getStacksDir(con.uid)}/${project}`;
-        const superuser = client.getStacksSuperuser(con.uid);
+        const dir = `${client.getStacksDir()}/${project}`;
         Promise.all([
-            cockpit.file(`${dir}/docker-compose.yml`, { superuser })
+            cockpit.file(`${dir}/docker-compose.yml`)
                     .read()
                     .catch(() => ""),
-            cockpit.file(`${dir}/.env`, { superuser })
+            cockpit.file(`${dir}/.env`)
                     .read()
                     .catch(() => ""),
         ]).then(([compose, env]) => {
-            Dialogs.show(<CreateStackModal projectName={project} initialCompose={compose} initialEnv={env} uid={con.uid} />);
+            Dialogs.show(<CreateStackModal projectName={project} initialCompose={compose} initialEnv={env} />);
         });
     };
 

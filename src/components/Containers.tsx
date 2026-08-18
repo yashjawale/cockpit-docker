@@ -46,7 +46,7 @@ import { dockerStatsToView, image_name, quote_cmdline } from '../lib/util.ts';
 import { useDockerInfo } from '../lib/context.tsx';
 
 import type { ListingTableColumnProps, ListingTableRowProps } from "cockpit-components-table";
-import type { Connection, Uid } from '../lib/rest.ts';
+import type { Connection } from '../lib/rest.ts';
 import type { ContainerStats, DockerContainer, DockerImage, Notification, UnusedContainer, User } from '../lib/types.ts';
 
 import '../styles/Containers.scss';
@@ -191,20 +191,18 @@ const InactiveStackRemoveModal = ({ project, onRemove }: {
  * to the containers listing once its containers appear; removing reloads it so
  * the deleted stack disappears from the list immediately.
  */
-const InactiveStackActions = ({ project, uid, onAddNotification, onStackRemoved }: {
+const InactiveStackActions = ({ project, onAddNotification, onStackRemoved }: {
     project: string,
-    uid: Uid,
     onAddNotification: (notification: Notification) => void,
     onStackRemoved: () => void,
 }) => {
     const [inProgress, setInProgress] = useState(false);
     const Dialogs = useDialogs();
-    const dir = `${client.getStacksDir(uid)}/${project}`;
-    const superuser = client.getStacksSuperuser(uid);
+    const dir = `${client.getStacksDir()}/${project}`;
 
     const startStack = () => {
         setInProgress(true);
-        client.composeAction(dir, "up", uid)
+        client.composeAction(dir, "up")
                 .catch(ex => {
                     const error = cockpit.format(_("Failed to start stack $0"), project); // not-covered: OS error
                     onAddNotification({ type: 'danger', error, errorDetail: ex.message });
@@ -217,14 +215,14 @@ const InactiveStackActions = ({ project, uid, onAddNotification, onStackRemoved 
      */
     const editStack = () => {
         Promise.all([
-            cockpit.file(`${dir}/docker-compose.yml`, { superuser })
+            cockpit.file(`${dir}/docker-compose.yml`)
                     .read()
                     .catch(() => ""),
-            cockpit.file(`${dir}/.env`, { superuser })
+            cockpit.file(`${dir}/.env`)
                     .read()
                     .catch(() => ""),
         ]).then(([compose, env]) => {
-            Dialogs.show(<CreateStackModal projectName={project} initialCompose={compose} initialEnv={env} uid={uid} />);
+            Dialogs.show(<CreateStackModal projectName={project} initialCompose={compose} initialEnv={env} />);
         });
     };
 
@@ -234,7 +232,7 @@ const InactiveStackActions = ({ project, uid, onAddNotification, onStackRemoved 
      * stack does not linger in the inactive stacks section.
      */
     const removeStack = (): Promise<void> => {
-        return cockpit.spawn(["rm", "-rf", dir], { superuser, err: "message" })
+        return cockpit.spawn(["rm", "-rf", dir], { err: "message" })
                 .then(onStackRemoved)
                 .catch(ex => {
                     const error = cockpit.format(_("Failed to remove stack $0"), project); // not-covered: OS error
@@ -550,25 +548,20 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
     // briefly highlight the changed row like a new row.
     const containerStatesRef = useRef<Record<string, string>>({});
 
-    // Daemon owner that this session's stacks belong to: the system daemon as
-    // long as it is reachable (root or an admin via escalation), otherwise the
-    // session user's rootless daemon.
-    const stacksOwner: Uid = users.some(u => u.uid === 0 && u.con) ? 0 : null;
-
     /**
      * Refresh the list of stacks on disk. Stacks whose containers are running
      * are shown in the containers listing; the remaining (inactive) ones are
      * listed separately with a start button.
      */
     const refreshStacks = () => {
-        client.listStacks(stacksOwner)
+        client.listStacks()
                 .then(setStacks)
                 .catch(ex => console.warn("listStacks failed:", ex.toString()));
     };
 
     useEffect(() => {
-        // refresh when the daemon connections change, so the stacks end up in
-        // the right (system vs. rootless) directory once it is known
+        // refresh when the daemon connections change, so the session user's
+        // stacks are listed once the stack directory is known
         refreshStacks();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [users]);
@@ -979,7 +972,7 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
                     </ToolbarItem>
                     <Divider orientation={{ default: "vertical" }} />
                     <ToolbarItem>
-                        <Button variant="secondary" key="create-new-stack-action" id="containers-containers-create-stack-btn" onClick={() => Dialogs.show(<CreateStackModal onStackCreated={refreshStacks} uid={stacksOwner} />)}>
+                        <Button variant="secondary" key="create-new-stack-action" id="containers-containers-create-stack-btn" onClick={() => Dialogs.show(<CreateStackModal onStackCreated={refreshStacks} />)}>
                             {_("Create stack")}
                         </Button>
                     </ToolbarItem>
@@ -1082,7 +1075,7 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
                                             { title: project },
                                             {
                                                 title: (
-                                                    <InactiveStackActions project={project} uid={stacksOwner} onAddNotification={onAddNotification} onStackRemoved={refreshStacks} />
+                                                    <InactiveStackActions project={project} onAddNotification={onAddNotification} onStackRemoved={refreshStacks} />
                                                 ),
                                                 props: { className: "pf-v6-c-table__action" },
                                             },
@@ -1105,7 +1098,6 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
                         close={() => setShowPortMapModal(false)}
                         containers={containers}
                         inactiveStacks={inactiveStacks}
-                        stacksOwner={stacksOwner}
                     />}
                 </CardBody>
             </Card>

@@ -7,7 +7,7 @@
 import type { JsonObject, JsonValue } from "cockpit";
 import cockpit from "cockpit";
 
-import { UID_DOCKER_DESKTOP, type Connection, type MonitorCallback, type Uid } from "./rest.ts";
+import { type Connection, type MonitorCallback } from "./rest.ts";
 
 import type { DockerContainer, DockerImage, ImageHistoryLayer, ImageSearchResult } from "./types.ts";
 
@@ -392,57 +392,69 @@ export const containerExists = (con: Connection, id: string) => dockerCall(con, 
 
 /* === docker-compose stacks ============================================== */
 
-/** Directory holding the files of the system-wide daemon's stacks */
+/** Fallback directory for stack files when the session user's home is unknown */
 export const STACKS_DIR = "/var/lib/cockpit-docker/stacks";
 
 /**
- * Superuser mode needed to reach the stack files of a daemon owner.
+ * Resolve the directory that holds the stack files of the session user.
  *
- * The system daemon's stacks live under /var/lib and are only writable by
- * root. Rootless daemons belong to a regular user, so their stacks are
- * accessed as that user without privilege escalation.
+ * Stacks always live in the session user's own data directory, so the compose
+ * files are owned by the user and directories that a stack bind-mounts into
+ * its containers behave like a local `docker compose up` in the user's home.
+ * app.tsx stores the session user's home in DOCKER_DESKTOP_HOME (which is also
+ * the home Docker Desktop runs in); it falls back to STACKS_DIR during the
+ * short startup window before the user info has been loaded.
  *
- * @param uid The uid of the daemon owner, or null for the session user
- * @returns The cockpit superuser mode to use, or undefined for none
- */
-export function getStacksSuperuser(uid: Uid): cockpit.ChannelOptions["superuser"] {
-    return (uid === 0 || uid === UID_DOCKER_DESKTOP) ? "try" : undefined;
-}
-
-/**
- * Resolve the directory that holds the stack files of a daemon owner.
- *
- * The system daemon stores stacks under /var/lib, which only root can write.
- * Rootless daemons belong to a regular user, so their stacks live in that
- * user's XDG data directory instead.
- *
- * @param uid The uid of the daemon owner, or null for the session user
  * @returns The absolute path of the stacks directory
  */
-export function getStacksDir(uid: Uid): string {
-    if (uid === 0 || uid === UID_DOCKER_DESKTOP)
-        return STACKS_DIR;
-    // DOCKER_DESKTOP_HOME holds the session user's home directory
+export function getStacksDir(): string {
     const home = sessionStorage.getItem('DOCKER_DESKTOP_HOME');
     return home ? `${home}/.local/share/cockpit-docker/stacks` : STACKS_DIR;
 }
 
 /**
- * List the stacks of a daemon owner, i.e. the directories under its stacks
+ * List the stacks of the session user, i.e. the directories under its stacks
  * directory regardless of whether they are running or stopped. An empty or
  * missing directory simply yields an empty list.
  *
- * @param uid The uid of the daemon owner, or null for the session user
  * @returns A promise resolving to the stack project names, sorted
  */
-export function listStacks(uid: Uid): Promise<string[]> {
-    return cockpit.spawn(["find", getStacksDir(uid), "-maxdepth", "1", "-mindepth", "1", "-type", "d", "-printf", "%f\\n"], {
-        superuser: getStacksSuperuser(uid),
+export function listStacks(): Promise<string[]> {
+    return cockpit.spawn(["find", getStacksDir(), "-maxdepth", "1", "-mindepth", "1", "-type", "d", "-printf", "%f\\n"], {
         err: "message",
     })
             .then(output => output.split("\n").filter(name => name.length > 0))
             .then(names => names.sort())
             .catch(() => []);
+}
+
+/**
+ * Error message that the docker CLI prints when it cannot reach the daemon
+ * socket. Plain `docker` commands say "Docker daemon socket", while the
+ * `docker compose` plugin says "docker API"; match both.
+ */
+const DOCKER_SOCKET_PERMISSION_DENIED = /permission denied while trying to connect to the docker (daemon socket|api)/i;
+
+/**
+ * Run a docker compose command from the given directory.
+ *
+ * Runs the command as the session user so that the stack files stay owned by
+ * the user and bind-mounted directories behave like a local `docker compose up`
+ * in the user's home. Users who are not in the docker group can still manage
+ * stacks: when the user cannot reach the daemon socket, the command is retried
+ * as root through cockpit's privilege escalation.
+ *
+ * @param args      The docker compose arguments to run
+ * @param directory Directory containing the stack's compose file
+ * @returns A promise resolving when the compose command has finished
+ */
+function spawnCompose(args: string[], directory: string): Promise<string> {
+    return cockpit.spawn(["docker", "compose", ...args], { directory, err: "message" })
+            .catch(ex => {
+                if (DOCKER_SOCKET_PERMISSION_DENIED.test(String(ex.message)))
+                    return cockpit.spawn(["docker", "compose", ...args], { directory, superuser: "try", err: "message" });
+                throw ex;
+            });
 }
 
 /**
@@ -454,16 +466,11 @@ export function listStacks(uid: Uid): Promise<string[]> {
  *
  * @param dir    Directory containing the stack's docker-compose.yml
  * @param action Either "up" to start or "stop" to stop the stack
- * @param uid    The uid of the daemon owner, or null for the session user
  * @returns A promise resolving when the compose command has finished
  */
-export function composeAction(dir: string, action: "up" | "stop", uid: Uid): Promise<string> {
+export function composeAction(dir: string, action: "up" | "stop"): Promise<string> {
     const args = action === "up" ? ["up", "-d"] : ["stop"];
-    return cockpit.spawn(["docker", "compose", ...args], {
-        directory: dir,
-        superuser: getStacksSuperuser(uid),
-        err: "message",
-    });
+    return spawnCompose(args, dir);
 }
 
 /**
@@ -477,13 +484,11 @@ export function composeAction(dir: string, action: "up" | "stop", uid: Uid): Pro
  * running; the promise rejects when the files cannot be read or parsed.
  *
  * @param dir Directory containing the stack's compose file
- * @param uid The uid of the daemon owner, or null for the session user
  * @returns A promise resolving to the normalized stack configuration
  */
-export function composeConfig(dir: string, uid: Uid): Promise<JsonObject> {
+export function composeConfig(dir: string): Promise<JsonObject> {
     return cockpit.spawn(["docker", "compose", "config", "--format", "json"], {
         directory: dir,
-        superuser: getStacksSuperuser(uid),
         err: "message",
     })
             .then(output => JSON.parse(output) as JsonObject);

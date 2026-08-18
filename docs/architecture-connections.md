@@ -74,7 +74,7 @@ incorporates the owning `uid`. All maps in `ApplicationState` (`containers`,
 The `uid` field on each object also drives:
 
 - which owner filter shows the object,
-- whether actions run as root (stacks, some daemon calls),
+- whether the daemon connection is escalated to root (all daemon calls),
 - the `key` derivation.
 
 ## Event-driven refresh
@@ -102,18 +102,22 @@ scaled by `online_cpus`) and memory usage (excluding `inactive_file`).
 ## Stacks (docker-compose)
 
 Stacks are the one feature that shells out to the docker CLI rather than the
-API. For each owner:
+API. They always live in the session user's own data directory, so the compose
+files are owned by the user and directories that a stack bind-mounts into its
+containers behave like a local `docker compose up` in the user's home:
 
-- `getStacksDir(uid)` — `/var/lib/cockpit-docker/stacks` for the system daemon
-  (and Docker Desktop), otherwise `$HOME/.local/share/cockpit-docker/stacks`.
-- `getStacksSuperuser(uid)` — `"try"` for root-owned locations, `undefined`
-  otherwise, so `cockpit.spawn` escalates only when needed.
-- `listStacks(uid)` — `find` over the stacks directory (empty/missing → []).
-- `composeAction(dir, action, uid)` — `docker compose up -d` / `docker compose stop`.
+- `getStacksDir()` — `$HOME/.local/share/cockpit-docker/stacks`, the session
+  user's home coming from `cockpit.user()` (stored as `DOCKER_DESKTOP_HOME`).
+- `listStacks()` — `find` over the stacks directory (empty/missing → []).
+- `composeAction(dir, action)` — `docker compose up -d` / `docker compose stop`,
+  run as the session user; when the user cannot reach the daemon socket it is
+  retried as root via cockpit's privilege escalation.
+- `composeConfig(dir)` — `docker compose config --format json`, purely local.
 
-This is what `StackActions`, `CreateStackModal` and `InactiveStackActions` use;
-they pass the per-owner directory around so the right daemon's stacks are
-managed.
+This is what `StackActions`, `CreateStackModal` and `InactiveStackActions` use.
+Running compose as the session user means users in the docker group manage the
+daemon without escalation, while admins outside the docker group still get
+root escalation when they cannot reach the socket.
 
 ## URL state mirroring
 

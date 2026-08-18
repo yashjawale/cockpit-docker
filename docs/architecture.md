@@ -73,11 +73,13 @@ returns a `Connection` object bound to one socket. `app.tsx` starts with dummy
 `{ con: null }` entries for system/user/Docker Desktop and replaces each one
 with a real connection once that daemon answers.
 
-Stacks (docker-compose) are stored per owner and do use the docker CLI:
-`lib/client.ts:getStacksDir()` / `getStacksSuperuser()` resolve where stacks
-live (`/var/lib/cockpit-docker/stacks` for the system daemon, the owner's
-`~/.local/share/cockpit-docker/stacks` otherwise), and `composeAction()`
-runs `docker compose up -d` / `docker compose stop`.
+Stacks (docker-compose) are the one feature that does use the docker CLI:
+`lib/client.ts:getStacksDir()` resolves where they live — always the session
+user's `~/.local/share/cockpit-docker/stacks`, so the files are owned by the
+user and bind-mounted directories behave like a local `docker compose up`.
+`composeAction()` runs `docker compose up -d` / `docker compose stop` as the
+session user, retrying as root only when the user cannot reach the daemon
+socket.
 
 ## Layering
 

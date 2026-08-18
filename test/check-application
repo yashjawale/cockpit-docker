@@ -477,7 +477,7 @@ class TestApplication(testlib.MachineCase):
             b.wait_visible("tr[data-row-name='test-ui-stack']")
         finally:
             # remove the stack directory created by the dialog
-            m.execute("rm -rf /var/lib/cockpit-docker/stacks/test-ui-stack")
+            m.execute("rm -rf /home/admin/.local/share/cockpit-docker/stacks/test-ui-stack")
             b.reload()
             b.enter_page("/docker")
             b.wait_not_present(".container-inactive-stacks")
@@ -488,14 +488,16 @@ class TestApplication(testlib.MachineCase):
 
         self.login_and_go("/docker")
         try:
-            # create an inactive stack on disk, so it shows up in the listing
-            m.execute('''mkdir -p /var/lib/cockpit-docker/stacks/test-remove-stack
-cat > /var/lib/cockpit-docker/stacks/test-remove-stack/docker-compose.yml <<'EOF'
+            # create an inactive stack on disk, so it shows up in the listing; it is
+            # owned by the session user like one created in the UI
+            m.execute('''mkdir -p /home/admin/.local/share/cockpit-docker/stacks/test-remove-stack
+cat > /home/admin/.local/share/cockpit-docker/stacks/test-remove-stack/docker-compose.yml <<'EOF'
 services:
   web:
     image: busybox
     command: ["sleep", "3600"]
-EOF''')
+EOF
+chown -R admin:admin /home/admin/.local/share/cockpit-docker/stacks''')
             b.reload()
             b.enter_page("/docker")
             b.wait_in_text(".container-inactive-stacks", "test-remove-stack")
@@ -520,7 +522,7 @@ EOF''')
             b.click(".pf-v6-c-modal-box__footer button:contains('Remove')")
             b.wait_not_present("tr[data-row-name='test-remove-stack']")
         finally:
-            m.execute("rm -rf /var/lib/cockpit-docker/stacks/test-remove-stack")
+            m.execute("rm -rf /home/admin/.local/share/cockpit-docker/stacks/test-remove-stack")
             b.reload()
             b.enter_page("/docker")
             b.wait_not_present(".container-inactive-stacks")
@@ -529,14 +531,16 @@ EOF''')
         b = self.browser
         m = self.machine
 
-        # create the stack's compose files under the plugin's stack directory
-        m.execute('''mkdir -p /var/lib/cockpit-docker/stacks/test-stack
-cat > /var/lib/cockpit-docker/stacks/test-stack/docker-compose.yml <<'EOF'
+        # create the stack's compose files under the session user's stack directory,
+        # owned by the user like one created in the UI
+        m.execute('''mkdir -p /home/admin/.local/share/cockpit-docker/stacks/test-stack
+cat > /home/admin/.local/share/cockpit-docker/stacks/test-stack/docker-compose.yml <<'EOF'
 services:
   web:
     image: busybox
     command: ["sleep", "3600"]
-EOF''')
+EOF
+chown -R admin:admin /home/admin/.local/share/cockpit-docker/stacks''')
 
         self.login_and_go("/docker")
         b.reload()
@@ -587,9 +591,9 @@ EOF''')
             b.wait_in_text(".container-inactive-stacks", "test-stack")
         finally:
             # bring down any leftover containers and remove the stack files
-            m.execute("cd /var/lib/cockpit-docker/stacks/test-stack && "
+            m.execute("cd /home/admin/.local/share/cockpit-docker/stacks/test-stack && "
                       "docker compose down --remove-orphans >/dev/null 2>&1 || true")
-            m.execute("rm -rf /var/lib/cockpit-docker/stacks/test-stack")
+            m.execute("rm -rf /home/admin/.local/share/cockpit-docker/stacks/test-stack")
             b.reload()
             b.enter_page("/docker")
             b.wait_not_present(".container-inactive-stacks")
@@ -785,27 +789,28 @@ EOF''')
             m.execute("docker run --name test-portmap-stopped -p 7090:90 busybox true")
             # two inactive stacks that both reserve host port 7070, i.e. a
             # port conflict between them and with the active container
-            m.execute('''mkdir -p /var/lib/cockpit-docker/stacks/test-portmap-stack
-cat > /var/lib/cockpit-docker/stacks/test-portmap-stack/docker-compose.yml <<'EOF'
+            m.execute('''mkdir -p /home/admin/.local/share/cockpit-docker/stacks/test-portmap-stack
+cat > /home/admin/.local/share/cockpit-docker/stacks/test-portmap-stack/docker-compose.yml <<'EOF'
 services:
   web:
     image: busybox
     ports:
       - "7070:80"
 EOF
-mkdir -p /var/lib/cockpit-docker/stacks/test-portmap-stack2
-cat > /var/lib/cockpit-docker/stacks/test-portmap-stack2/docker-compose.yml <<'EOF'
+mkdir -p /home/admin/.local/share/cockpit-docker/stacks/test-portmap-stack2
+cat > /home/admin/.local/share/cockpit-docker/stacks/test-portmap-stack2/docker-compose.yml <<'EOF'
 services:
   api:
     image: busybox
     ports:
       - "7070:80"
-EOF''')
+EOF
+chown -R admin:admin /home/admin/.local/share/cockpit-docker/stacks''')
             # a stack that was started and then stopped: it still has
             # containers, so it is not an inactive stack, but its container
             # is stopped and occupies host port 7080
-            m.execute('''mkdir -p /var/lib/cockpit-docker/stacks/test-portmap-stopped-stack
-cat > /var/lib/cockpit-docker/stacks/test-portmap-stopped-stack/docker-compose.yml <<'EOF'
+            m.execute('''mkdir -p /home/admin/.local/share/cockpit-docker/stacks/test-portmap-stopped-stack
+cat > /home/admin/.local/share/cockpit-docker/stacks/test-portmap-stopped-stack/docker-compose.yml <<'EOF'
 services:
   db:
     image: busybox
@@ -813,7 +818,9 @@ services:
     ports:
       - "7080:80"
 EOF
-cd /var/lib/cockpit-docker/stacks/test-portmap-stopped-stack && docker compose up -d && docker compose stop''')
+chown -R admin:admin /home/admin/.local/share/cockpit-docker/stacks
+cd /home/admin/.local/share/cockpit-docker/stacks/test-portmap-stopped-stack && \
+docker compose up -d && docker compose stop''')
             b.reload()
             b.enter_page("/docker")
             b.wait_visible("tr[data-row-name='0-test-portmap-a']")
@@ -883,12 +890,12 @@ cd /var/lib/cockpit-docker/stacks/test-portmap-stopped-stack && docker compose u
                 "test-portmap-stopped-stack-db-1", "web",
             ])
         finally:
-            m.execute("cd /var/lib/cockpit-docker/stacks/test-portmap-stopped-stack && "
+            m.execute("cd /home/admin/.local/share/cockpit-docker/stacks/test-portmap-stopped-stack && "
                       "docker compose down --remove-orphans >/dev/null 2>&1 || true")
             m.execute("docker rm -f test-portmap-a test-portmap-b test-portmap-c test-portmap-stopped")
-            m.execute("rm -rf /var/lib/cockpit-docker/stacks/test-portmap-stack "
-                      "/var/lib/cockpit-docker/stacks/test-portmap-stack2 "
-                      "/var/lib/cockpit-docker/stacks/test-portmap-stopped-stack")
+            m.execute("rm -rf /home/admin/.local/share/cockpit-docker/stacks/test-portmap-stack "
+                      "/home/admin/.local/share/cockpit-docker/stacks/test-portmap-stack2 "
+                      "/home/admin/.local/share/cockpit-docker/stacks/test-portmap-stopped-stack")
             b.reload()
             b.enter_page("/docker")
             b.wait_not_present(".container-name")

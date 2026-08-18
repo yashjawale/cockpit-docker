@@ -29,9 +29,28 @@ case "$ID" in
         ;;
     *)
         dnf -y install dnf-plugins-core
-        curl -fsSL https://download.docker.com/linux/centos/docker-ce.repo -o /etc/yum.repos.d/docker-ce.repo
-        # CentOS Stream reports $releasever as "9stream", but Docker only publishes "9"
-        sed -i 's@$releasever@9@g' /etc/yum.repos.d/docker-ce.repo
+        # Docker publishes repos only for the Fedora releases it still
+        # supports; for a brand new release (e.g. 45) fall back to the newest
+        # release that it does publish, so the tests keep running until Docker
+        # catches up.
+        DOCKER_REPO="centos"
+        DOCKER_RELEASEVER="9"
+        if [ "$ID" = "fedora" ]; then
+            DOCKER_REPO="fedora"
+            DOCKER_RELEASEVER="$VERSION_ID"
+            while [ "$DOCKER_RELEASEVER" -gt 39 ] && ! curl -fsSL "https://download.docker.com/linux/fedora/$DOCKER_RELEASEVER/" >/dev/null 2>&1; do
+                DOCKER_RELEASEVER=$((DOCKER_RELEASEVER - 1))
+            done
+            if [ "$DOCKER_RELEASEVER" -le 39 ]; then
+                # no supported Fedora repo at all; fall back to the CentOS one
+                DOCKER_REPO="centos"
+                DOCKER_RELEASEVER="9"
+            fi
+        fi
+        curl -fsSL "https://download.docker.com/linux/$DOCKER_REPO/docker-ce.repo" -o /etc/yum.repos.d/docker-ce.repo
+        # replace $releasever: CentOS Stream reports "9stream", but Docker only
+        # publishes "9"; for Fedora this pins the (possibly fallen-back) release
+        sed -i "s@\$releasever@$DOCKER_RELEASEVER@g" /etc/yum.repos.d/docker-ce.repo
         dnf -y install docker-ce docker-ce-cli docker-buildx-plugin containerd.io docker-compose-plugin
         ;;
 esac

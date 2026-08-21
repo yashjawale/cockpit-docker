@@ -109,9 +109,13 @@ containers behave like a local `docker compose up` in the user's home:
 - `getStacksDir()` — `$HOME/.local/share/cockpit-docker/stacks`, the session
   user's home coming from `cockpit.user()` (stored as `DOCKER_DESKTOP_HOME`).
 - `listStacks()` — `find` over the stacks directory (empty/missing → []).
-- `composeAction(dir, action)` — `docker compose up -d` / `docker compose stop`,
-  run as the session user; when the user cannot reach the daemon socket it is
-  retried as root via cockpit's privilege escalation.
+- `composeAction(dir, action, build)` — `docker compose up -d` / `docker
+  compose stop`, run as the session user; when the user cannot reach the daemon
+  socket it is retried as root via cockpit's privilege escalation. With build,
+  "up" passes `--build` to rebuild images from Dockerfiles in the stack folder;
+  the flag is persisted as a `.build` marker file in the stack directory (see
+  `readBuildFlag()` / `writeBuildFlag()`), set from a checkbox in
+  `CreateStackModal`.
 - `composeConfig(dir)` — `docker compose config --format json`, purely local.
 
 This is what `StackActions`, `CreateStackModal` and `InactiveStackActions` use.

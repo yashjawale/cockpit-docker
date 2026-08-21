@@ -8,6 +8,7 @@
 import React, { useState } from 'react';
 
 import { Button } from "@patternfly/react-core/dist/esm/components/Button";
+import { Checkbox } from "@patternfly/react-core/dist/esm/components/Checkbox";
 import { Form, FormGroup } from "@patternfly/react-core/dist/esm/components/Form";
 import {
     Modal, ModalBody, ModalFooter, ModalHeader
@@ -60,13 +61,15 @@ const DEFAULT_ENV = `# Environment variables for the stack, e.g.
  * stacks directory, so they are owned by the user and behave like a local
  * `docker compose up` in the user's home.
  */
-const CreateStackModal = ({ projectName, initialCompose, initialEnv, onStackCreated }: {
+const CreateStackModal = ({ projectName, initialCompose, initialEnv, initialBuild, onStackCreated }: {
     /** The project name to prefill; defaults to a random name when creating */
     projectName?: string,
     /** The docker-compose.yml content to prefill; defaults to a template */
     initialCompose?: string,
     /** The .env content to prefill; defaults to a template */
     initialEnv?: string,
+    /** Whether starting the stack builds local images; read from the marker file when editing */
+    initialBuild?: boolean,
     /** Invoked after the stack files have been written (not on edit) */
     onStackCreated?: () => void,
 }) => {
@@ -75,6 +78,7 @@ const CreateStackModal = ({ projectName, initialCompose, initialEnv, onStackCrea
     const [nameError, setNameError] = useState("");
     const [compose, setCompose] = useState(initialCompose ?? DEFAULT_COMPOSE);
     const [env, setEnv] = useState(initialEnv ?? DEFAULT_ENV);
+    const [build, setBuild] = useState(initialBuild ?? false);
     const [inProgress, setInProgress] = useState(false);
     const [dialogError, setDialogError] = useState("");
     const [dialogErrorDetail, setDialogErrorDetail] = useState("");
@@ -97,8 +101,10 @@ const CreateStackModal = ({ projectName, initialCompose, initialEnv, onStackCrea
 
     /**
      * Write the stack files into the session user's stacks directory,
-     * closing the dialog on success. The stack is not started automatically;
-     * the user starts it later from the inactive stacks section.
+     * closing the dialog on success. The build flag is stored as a marker
+     * file, so it applies to the later `docker compose up` that starts the
+     * stack. The stack is not started automatically; the user starts it
+     * later from the inactive stacks section.
      */
     const handleSave = () => {
         if (!name) {
@@ -114,6 +120,7 @@ const CreateStackModal = ({ projectName, initialCompose, initialEnv, onStackCrea
         cockpit.spawn(["mkdir", "-p", dir], { err: "message" })
                 .then(() => cockpit.file(`${dir}/docker-compose.yml`).replace(compose))
                 .then(() => cockpit.file(`${dir}/.env`).replace(env))
+                .then(() => client.writeBuildFlag(dir, build))
                 .then(() => {
                     if (!projectName)
                         onStackCreated?.();
@@ -146,6 +153,15 @@ const CreateStackModal = ({ projectName, initialCompose, initialEnv, onStackCrea
                             onChange={(_, value) => handleInputChange(value)}
                         />
                         <FormHelper fieldId="create-stack-dialog-name" helperTextInvalid={nameError ?? undefined} />
+                    </FormGroup>
+                    <FormGroup fieldId="create-stack-dialog-build" label={_("Options")} isStack hasNoPaddingTop>
+                        <Checkbox
+                            id="create-stack-dialog-build"
+                            isChecked={build}
+                            onChange={(_, checked) => setBuild(checked)}
+                            label={_("Build local images when starting")}
+                            body={_("Runs docker compose up --build when starting the stack, for images built from a Dockerfile in the stack folder.")}
+                        />
                     </FormGroup>
                     <FormGroup fieldId="create-stack-dialog-compose" label={_("docker-compose.yml")}>
                         <CodeEditor

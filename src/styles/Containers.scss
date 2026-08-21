@@ -188,3 +188,17 @@
         padding: 0;
     }
 }
+
+@container pf-v6-contain-table (min-width: 48rem) {
+    .containers-containers .ct-containers-listing {
+        table-layout: fixed;
+
+        > thead > tr > th:first-child {
+            width: 2.5rem;
+        }
+
+        > thead > tr > th:last-child {
+            width: 4rem;
+        }
+    }
+}

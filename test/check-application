@@ -651,11 +651,23 @@ chown -R admin:admin /home/admin/.local/share/cockpit-docker/stacks''')
             b.enter_page("/docker")
             b.click("#containers-images .pf-v6-c-expandable-section__toggle button")
 
-            # nameless images are hidden behind the "Show intermediate images" toggle
+            # nameless images are hidden behind the "Show intermediate images"
+            # toggle in the images kebab menu
             b.wait_not_present("#containers-images tr[data-row-name='0-<none>:<none>']")
-            b.click("#containers-images button:contains('Show intermediate images')")
+            b.click("#image-actions-dropdown")
+            b.click("#toggle-intermediate-images")
             b.wait_visible("#containers-images tr[data-row-name='0-<none>:<none>']")
             b.wait_in_text("#containers-images tr[data-row-name='0-<none>:<none>']", "unused")
+
+            # unticking the toggle hides the intermediate image again
+            b.click("#image-actions-dropdown")
+            b.click("#toggle-intermediate-images")
+            b.wait_not_present("#containers-images tr[data-row-name='0-<none>:<none>']")
+
+            # show them again for the prune step below
+            b.click("#image-actions-dropdown")
+            b.click("#toggle-intermediate-images")
+            b.wait_visible("#containers-images tr[data-row-name='0-<none>:<none>']")
 
             # the prune dialog lists the dangling image, and pruning removes it
             b.click("#image-actions-dropdown")

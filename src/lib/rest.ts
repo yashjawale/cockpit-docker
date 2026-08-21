@@ -143,6 +143,9 @@ function connect(uid: Uid): Connection {
     /* This doesn't create a channel until a request */
     const http = cockpit.http(addr.path, { superuser: addr.superuser, binary: true });
     const raw_channels: cockpit.Channel<Uint8Array>[] = [];
+    // reject callbacks of requests that are currently in flight, so that
+    // close() can settle them instead of letting them hang forever
+    const pending_calls = new Set<(error: object) => void>();
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
     const user_str = (uid === null) ? "user" : (uid === 0) ? "root" : `uid ${uid}`;
@@ -158,14 +161,18 @@ function connect(uid: Uid): Connection {
         debug(user_str, `call ${id}:`, JSON.stringify(options));
         return new Promise((resolve, reject) => {
             options = options || {};
+            const settled = () => pending_calls.delete(reject);
+            pending_calls.add(reject);
             http.request(options)
                     .then((result: Uint8Array) => {
+                        settled();
                         const text = decoder.decode(result);
                         debug(user_str, `call ${id} result:`, text);
                         resolve(text);
                     })
                     // @ts-expect-error: magic cockpit defer error extra "content" parameter
                     .catch((error: object, content: unknown) => {
+                        settled();
                         const content_text = (content instanceof Uint8Array)
                             ? decoder.decode(content as Uint8Array)
                             : content;
@@ -266,8 +273,15 @@ function connect(uid: Uid): Connection {
 
     /**
      * Close the HTTP connection and all open streaming channels.
+     *
+     * Requests that are still in flight (e.g. a long-running image pull) are
+     * rejected, so that callers waiting on them fail visibly instead of
+     * getting stuck forever when the daemon or the connection goes away.
      */
     function close(): void {
+        const error = format_error({ problem: "disconnected", reason: "connection closed" }, undefined);
+        pending_calls.forEach(reject => reject(error));
+        pending_calls.clear();
         http.close();
         raw_channels.forEach(ch => ch.close());
     }

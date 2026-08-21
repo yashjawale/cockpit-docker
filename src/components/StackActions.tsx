@@ -252,6 +252,28 @@ export const StackActions = ({ con, containers, containersStats, onAddNotificati
     };
 
     /**
+     * Copy the folder holding the stack's compose file to the clipboard.
+     *
+     * Compose records its working directory in the
+     * com.docker.compose.project.working_dir label of every stack container,
+     * so stacks started outside of this plugin report their real directory;
+     * stacks without that label fall back to our own stacks directory.
+     */
+    const copyFolderPath = () => {
+        const dir = containers[0]?.Config?.Labels?.['com.docker.compose.project.working_dir'] ??
+            `${client.getStacksDir()}/${project}`;
+        navigator.clipboard.writeText(dir)
+                .then(() => onAddNotification({ type: 'success', error: _("Stack folder path copied to clipboard") }))
+                .catch(ex => {
+                    onAddNotification({
+                        type: 'danger',
+                        error: _("Failed to copy stack folder path to clipboard"),
+                        errorDetail: ex.message,
+                    });
+                });
+    };
+
+    /**
      * Open the edit dialog for the stack, loading the current compose and env
      * files from the stacks directory.
      */
@@ -306,6 +328,12 @@ export const StackActions = ({ con, containers, containersStats, onAddNotificati
             <Divider key="stack-separator-2" />,
         );
     }
+    if (project)
+        dropdownItems.push(
+            <DropdownItem key="stack-copy-path" className="stack-action-copy-path" component="button" onClick={copyFolderPath}>
+                {_("Copy folder path")}
+            </DropdownItem>,
+        );
     dropdownItems.push(
         <DropdownItem key="stack-remove" className="stack-action-remove pf-m-danger" component="button" onClick={() => Dialogs.show(<StackRemoveModal containers={containers} onRemove={removeStack} />)}>
             {_("Remove")}

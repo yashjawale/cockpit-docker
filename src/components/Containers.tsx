@@ -227,6 +227,22 @@ const InactiveStackActions = ({ project, onAddNotification, onStackRemoved }: {
     };
 
     /**
+     * Copy the folder holding the stack's compose file to the clipboard.
+     * Inactive stacks always live in the session user's stacks directory.
+     */
+    const copyFolderPath = () => {
+        navigator.clipboard.writeText(dir)
+                .then(() => onAddNotification({ type: 'success', error: _("Stack folder path copied to clipboard") }))
+                .catch(ex => {
+                    onAddNotification({
+                        type: 'danger',
+                        error: _("Failed to copy stack folder path to clipboard"),
+                        errorDetail: ex.message,
+                    });
+                });
+    };
+
+    /**
      * Remove the stack directory. Inactive stacks have no containers, so only
      * the files on disk are deleted; the list is refreshed so the deleted
      * stack does not linger in the inactive stacks section.
@@ -259,6 +275,9 @@ const InactiveStackActions = ({ project, onAddNotification, onStackRemoved }: {
                 dropdownItems={[
                     <DropdownItem key="edit" component="button" onClick={editStack}>
                         {_("Edit")}
+                    </DropdownItem>,
+                    <DropdownItem key="copy-folder-path" className="stack-action-copy-path" component="button" onClick={copyFolderPath}>
+                        {_("Copy folder path")}
                     </DropdownItem>,
                     <DropdownItem key="remove" className="pf-m-danger btn-delete" component="button" onClick={() => Dialogs.show(<InactiveStackRemoveModal project={project} onRemove={removeStack} />)}>
                         {_("Remove")}

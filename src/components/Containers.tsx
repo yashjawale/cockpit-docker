@@ -19,7 +19,7 @@ import {
 } from '@patternfly/react-core/dist/esm/components/Modal';
 import { Toolbar, ToolbarContent, ToolbarItem } from "@patternfly/react-core/dist/esm/components/Toolbar";
 import { Flex } from "@patternfly/react-core/dist/esm/layouts/Flex";
-import { cellWidth, SortByDirection } from '@patternfly/react-table';
+import { SortByDirection } from '@patternfly/react-table';
 import { KebabDropdown } from "cockpit-components-dropdown.jsx";
 import { useDialogs } from "dialogs.jsx";
 
@@ -817,11 +817,11 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
     };
 
     const columnTitles: ListingTableColumnProps[] = [
-        { title: _("Container"), transforms: [cellWidth(20)], sortable: true } as ListingTableColumnProps,
-        { title: _("Owner"), sortable: true },
-        { title: _("CPU"), sortable: true, props: { className: 'ct-numeric-column' } },
-        { title: _("Memory"), sortable: true, props: { className: 'ct-numeric-column' } },
-        { title: _("State"), sortable: true },
+        { title: _("Container"), sortable: true },
+        { title: _("Owner"), sortable: true, props: { width: 20 } },
+        { title: _("CPU"), sortable: true, props: { className: 'ct-numeric-column', width: 10 } },
+        { title: _("Memory"), sortable: true, props: { className: 'ct-numeric-column', width: 15 } },
+        { title: _("State"), sortable: true, props: { width: 15 } },
         { title: "", sortable: false, props: { screenReaderText: _("Actions") } },
     ];
     const isLoaded = containers !== null;
@@ -1043,6 +1043,7 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
                                             <ListingTable
                                                 key="no-stack"
                                                 variant='compact'
+                                                className="ct-containers-listing"
                                                 aria-label={_("Containers")}
                                                 emptyCaption={emptyCaption}
                                                 columns={columnTitles}
@@ -1067,6 +1068,7 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
                                             </CardHeader>
                                             <ListingTable
                                                 variant='compact'
+                                                className="ct-containers-listing"
                                                 aria-label={cockpit.format(_("Containers of stack $0"), section)}
                                                 emptyCaption={cockpit.format(_("No containers in this stack"), section)}
                                                 columns={columnTitles}

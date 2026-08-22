@@ -10,6 +10,7 @@ import { Badge } from "@patternfly/react-core/dist/esm/components/Badge";
 import { Button } from "@patternfly/react-core/dist/esm/components/Button";
 import { Card, CardBody, CardFooter, CardHeader, CardTitle } from "@patternfly/react-core/dist/esm/components/Card";
 import { Content, ContentVariants } from "@patternfly/react-core/dist/esm/components/Content";
+import { Divider } from "@patternfly/react-core/dist/esm/components/Divider";
 import { DropdownItem } from '@patternfly/react-core/dist/esm/components/Dropdown/index.js';
 import { ExpandableSection } from "@patternfly/react-core/dist/esm/components/ExpandableSection";
 import { Label } from "@patternfly/react-core/dist/esm/components/Label";
@@ -229,8 +230,8 @@ const useImageUpdates = (images: Record<string, DockerImage> | null): Record<str
  *
  * Each row shows the name, owner, creation time, id, disk usage and the
  * number of containers using it, and expands into Details and History tabs.
- * Actions at the top allow downloading new images, pulling all images and
- * pruning unused ones.
+ * Actions in the header kebab allow downloading new images, pulling all
+ * images, pruning unused ones and showing intermediate images.
  */
 const Images = ({ images, imageContainerList, onAddNotification, textFilter, ownerFilter, showAll, users }: ImagesProps) => {
     const Dialogs = useDialogs();
@@ -514,29 +515,16 @@ const Images = ({ images, imageContainerList, onAddNotification, textFilter, own
         });
     }
 
-    let toggleIntermediate: string | React.ReactNode = "";
-    if (interim) {
-        toggleIntermediate = (
-            <span className="listing-action">
-                <Button variant="link" onClick={() => { setIntermediateOpened(!intermediateOpened); setIsExpanded(true) }}>
-                    {intermediateOpened ? _("Hide intermediate images") : _("Show intermediate images")}
-                </Button>
-            </span>
-        );
-    }
     const cardBody = (
-        <>
-            <ListingTable
-                aria-label={_("Images")}
-                variant='compact'
-                emptyCaption={emptyCaption}
-                columns={columnTitles}
-                rows={imageRows}
-                sortMethod={sortRows}
-                sortBy={{ index: 1, direction: SortByDirection.asc }}
-            />
-            {toggleIntermediate}
-        </>
+        <ListingTable
+            aria-label={_("Images")}
+            variant='compact'
+            emptyCaption={emptyCaption}
+            columns={columnTitles}
+            rows={imageRows}
+            sortMethod={sortRows}
+            sortBy={{ index: 1, direction: SortByDirection.asc }}
+        />
     );
 
     const { imageStats, unusedImages } = calculateStats();
@@ -575,6 +563,9 @@ const Images = ({ images, imageContainerList, onAddNotification, textFilter, own
                             handlePullAllImages={onPullAllImages}
                             handlePruneUsedImages={onOpenPruneUnusedImagesDialog}
                             unusedImages={unusedImages}
+                            hasIntermediateImages={interim}
+                            showIntermediateImages={intermediateOpened}
+                            onToggleIntermediateImages={() => { setIntermediateOpened(!intermediateOpened); setIsExpanded(true) }}
                         />
                     </FlexItem>
                 </Flex>
@@ -627,13 +618,20 @@ type ImageOverActionsProps = {
     handlePruneUsedImages: () => void,
     /** Images not used by any container, disabling prune when empty */
     unusedImages: DockerImage[],
+    /** Whether nameless (intermediate) images exist for the current filters */
+    hasIntermediateImages: boolean,
+    /** Whether intermediate images are currently shown */
+    showIntermediateImages: boolean,
+    /** Callback toggling the visibility of intermediate images */
+    onToggleIntermediateImages: () => void,
 };
 
 /**
  * The kebab menu in the card header offering download, pull-all and prune
- * actions for the whole image set.
+ * actions for the whole image set, plus the toggle for showing intermediate
+ * images.
  */
-const ImageOverActions = ({ handleDownloadNewImage, handlePullAllImages, handlePruneUsedImages, unusedImages }: ImageOverActionsProps) => {
+const ImageOverActions = ({ handleDownloadNewImage, handlePullAllImages, handlePruneUsedImages, unusedImages, hasIntermediateImages, showIntermediateImages, onToggleIntermediateImages }: ImageOverActionsProps) => {
     const actions = [
         <DropdownItem
             key="download-new-image"
@@ -661,6 +659,21 @@ const ImageOverActions = ({ handleDownloadNewImage, handlePullAllImages, handleP
             {_("Prune unused images")}
         </DropdownItem>
     ];
+
+    if (hasIntermediateImages) {
+        actions.push(<Divider key="separator-intermediate" />);
+        actions.push(
+            <DropdownItem
+                key="toggle-intermediate-images"
+                id="toggle-intermediate-images"
+                hasCheckbox
+                isSelected={showIntermediateImages}
+                onClick={onToggleIntermediateImages}
+            >
+                {_("Show intermediate images")}
+            </DropdownItem>
+        );
+    }
 
     return (
         <KebabDropdown

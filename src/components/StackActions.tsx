@@ -253,7 +253,7 @@ export const StackActions = ({ con, containers, containersStats, onAddNotificati
 
     /**
      * Open the edit dialog for the stack, loading the current compose and env
-     * files from the stacks directory.
+     * files and the build flag from the stacks directory.
      */
     const editStack = () => {
         if (!project)
@@ -266,8 +266,9 @@ export const StackActions = ({ con, containers, containersStats, onAddNotificati
             cockpit.file(`${dir}/.env`)
                     .read()
                     .catch(() => ""),
-        ]).then(([compose, env]) => {
-            Dialogs.show(<CreateStackModal projectName={project} initialCompose={compose} initialEnv={env} />);
+            client.readBuildFlag(dir),
+        ]).then(([compose, env, build]) => {
+            Dialogs.show(<CreateStackModal projectName={project} initialCompose={compose} initialEnv={env} initialBuild={build} />);
         });
     };
 

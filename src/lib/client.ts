@@ -458,18 +458,66 @@ function spawnCompose(args: string[], directory: string): Promise<string> {
 }
 
 /**
+ * Marker file inside a stack directory that enables building local images on
+ * start, i.e. running `docker compose up -d --build`. Its presence alone is
+ * what matters; its content is irrelevant.
+ */
+const BUILD_FLAG_FILE = ".build";
+
+/**
+ * Read a stack's build flag.
+ *
+ * The flag is stored as a marker file in the stack directory, so it survives
+ * reloads and is removed together with the stack's files. read() resolves
+ * with null (and rejects on OS errors) when the marker does not exist; both
+ * cases mean "no build".
+ *
+ * @param dir Directory containing the stack's docker-compose.yml
+ * @returns A promise resolving to true when the stack builds images on start
+ */
+export function readBuildFlag(dir: string): Promise<boolean> {
+    return cockpit.file(`${dir}/${BUILD_FLAG_FILE}`)
+            .read()
+            .then(content => content !== null)
+            .catch(() => false);
+}
+
+/**
+ * Write or clear a stack's build flag.
+ *
+ * Creates the marker file for true and erases it for false, so stacks without
+ * the checkbox enabled keep their directory free of extra files.
+ *
+ * @param dir   Directory containing the stack's docker-compose.yml
+ * @param build Whether starting the stack should build local images
+ * @returns A promise resolving when the flag has been written
+ */
+export function writeBuildFlag(dir: string, build: boolean): Promise<void> {
+    return cockpit.file(`${dir}/${BUILD_FLAG_FILE}`)
+            .replace(build ? "" : null)
+            .then(() => undefined);
+}
+
+/**
  * Start or stop a docker-compose stack.
  *
  * Runs `docker compose up -d` / `docker compose stop` in the given directory,
  * so the stack is managed through its compose files. Requires the docker CLI
- * and compose plugin on the host.
+ * and compose plugin on the host. With build, "up" also passes `--build`, so
+ * images with a Dockerfile are rebuilt from source before the containers
+ * start.
  *
  * @param dir    Directory containing the stack's docker-compose.yml
  * @param action Either "up" to start or "stop" to stop the stack
+ * @param build  Whether "up" should rebuild local images first
  * @returns A promise resolving when the compose command has finished
  */
-export function composeAction(dir: string, action: "up" | "stop"): Promise<string> {
-    const args = action === "up" ? ["up", "-d"] : ["stop"];
+export function composeAction(dir: string, action: "up" | "stop", build = false): Promise<string> {
+    let args: string[];
+    if (action === "stop")
+        args = ["stop"];
+    else
+        args = build ? ["up", "-d", "--build"] : ["up", "-d"];
     return spawnCompose(args, dir);
 }
 

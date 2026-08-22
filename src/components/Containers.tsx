@@ -202,7 +202,8 @@ const InactiveStackActions = ({ project, onAddNotification, onStackRemoved }: {
 
     const startStack = () => {
         setInProgress(true);
-        client.composeAction(dir, "up")
+        client.readBuildFlag(dir)
+                .then(build => client.composeAction(dir, "up", build))
                 .catch(ex => {
                     const error = cockpit.format(_("Failed to start stack $0"), project); // not-covered: OS error
                     onAddNotification({ type: 'danger', error, errorDetail: ex.message });
@@ -211,7 +212,8 @@ const InactiveStackActions = ({ project, onAddNotification, onStackRemoved }: {
     };
 
     /**
-     * Open the edit dialog, loading the stack's compose and env files.
+     * Open the edit dialog, loading the stack's compose and env files and its
+     * build flag.
      */
     const editStack = () => {
         Promise.all([
@@ -221,8 +223,9 @@ const InactiveStackActions = ({ project, onAddNotification, onStackRemoved }: {
             cockpit.file(`${dir}/.env`)
                     .read()
                     .catch(() => ""),
-        ]).then(([compose, env]) => {
-            Dialogs.show(<CreateStackModal projectName={project} initialCompose={compose} initialEnv={env} />);
+            client.readBuildFlag(dir),
+        ]).then(([compose, env, build]) => {
+            Dialogs.show(<CreateStackModal projectName={project} initialCompose={compose} initialEnv={env} initialBuild={build} />);
         });
     };
 

@@ -52,6 +52,14 @@ const DEFAULT_ENV = `# Environment variables for the stack, e.g.
 # FOO=bar
 `;
 
+/*
+ * Vertical space shared by the compose and .env editors, split 2/3 : 1/3 so
+ * the compose file (the main content) gets most of the dialog (#41).
+ */
+const EDITORS_HEIGHT = "600px";
+const COMPOSE_EDITOR_HEIGHT = `calc(${EDITORS_HEIGHT} * 2 / 3)`;
+const ENV_EDITOR_HEIGHT = `calc(${EDITORS_HEIGHT} * 1 / 3)`;
+
 /**
  * Dialog creating or editing a docker-compose stack.
  *
@@ -153,7 +161,7 @@ const CreateStackModal = ({ projectName, initialCompose, initialEnv, onStackCrea
                             language={Language.yaml}
                             code={compose}
                             onChange={(value) => setCompose(value)}
-                            height="300px"
+                            height={COMPOSE_EDITOR_HEIGHT}
                             isMinimapVisible={false}
                             isDarkTheme
                         />
@@ -164,7 +172,7 @@ const CreateStackModal = ({ projectName, initialCompose, initialEnv, onStackCrea
                             language={Language.plaintext}
                             code={env}
                             onChange={(value) => setEnv(value)}
-                            height="300px"
+                            height={ENV_EDITOR_HEIGHT}
                             isMinimapVisible={false}
                             isDarkTheme
                         />

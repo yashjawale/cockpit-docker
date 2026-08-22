@@ -415,34 +415,44 @@ export const ImageRunModal = ({ users, image, localImages, dockerInfo, dialogs }
 
         setState({ inProgress: true });
 
-        const createConfig = getCreateConfig();
-        const { pullLatestImage } = stateRef.current;
-        const con = stateRef.current.owner.con as Connection;
-        const image = createConfig.Image as string;
-        let imageExists = true;
-
         try {
-            await client.imageExists(con, image);
-        } catch {
-            imageExists = false;
-        }
+            const createConfig = getCreateConfig();
+            const { pullLatestImage } = stateRef.current;
+            const con = stateRef.current.owner.con as Connection;
+            const image = createConfig.Image as string;
+            let imageExists = true;
 
-        if (imageExists && !pullLatestImage) {
-            createContainer(con, createConfig, runImage);
-        } else {
-            // Keep the dialog open and pull the image before creating the container
             try {
-                await client.pullImage(con, image);
-            } catch (ex) {
-                const err = ex as DockerError;
-                setState({
-                    inProgress: false,
-                    dialogError: cockpit.format(_("Failed to pull image $0"), image),
-                    dialogErrorDetail: err.reason ? cockpit.format("$0: $1", err.reason, err.message) : err.message ?? ""
-                });
-                return;
+                await client.imageExists(con, image);
+            } catch {
+                imageExists = false;
             }
-            createContainer(con, createConfig, runImage);
+
+            if (imageExists && !pullLatestImage) {
+                createContainer(con, createConfig, runImage);
+            } else {
+                // Keep the dialog open and pull the image before creating the container
+                try {
+                    await client.pullImage(con, image);
+                } catch (ex) {
+                    const err = ex as DockerError;
+                    setState({
+                        inProgress: false,
+                        dialogError: cockpit.format(_("Failed to pull image $0"), image),
+                        dialogErrorDetail: err.reason ? cockpit.format("$0: $1", err.reason, err.message) : err.message ?? ""
+                    });
+                    return;
+                }
+                createContainer(con, createConfig, runImage);
+            }
+        } catch (ex) {
+            // An unexpected error must not leave the dialog stuck in its
+            // loading state; surface it as a dialog error alert instead.
+            setState({
+                inProgress: false,
+                dialogError: _("Failed to run container"),
+                dialogErrorDetail: (ex as DockerError).message ?? String(ex)
+            });
         }
     };
 

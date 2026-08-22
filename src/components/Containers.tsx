@@ -38,6 +38,7 @@ import ContainerCommitModal from './ContainerCommitModal.tsx';
 import CreateStackModal from './CreateStackModal.tsx';
 import ForceRemoveModal from './ForceRemoveModal.tsx';
 import { ImageRunModal } from './ImageRunModal.tsx';
+import { ErrorNotification } from './Notification.tsx';
 import PortMapModal from './PortMapModal.tsx';
 import PruneUnusedContainersModal from './PruneUnusedContainersModal.tsx';
 import { StackActions } from './StackActions.tsx';
@@ -191,9 +192,10 @@ const InactiveStackRemoveModal = ({ project, onRemove }: {
  * to the containers listing once its containers appear; removing reloads it so
  * the deleted stack disappears from the list immediately.
  */
-const InactiveStackActions = ({ project, onAddNotification, onStackRemoved }: {
+const InactiveStackActions = ({ project, onAddNotification, onStartError, onStackRemoved }: {
     project: string,
     onAddNotification: (notification: Notification) => void,
+    onStartError: (error: { project: string, detail: string } | null) => void,
     onStackRemoved: () => void,
 }) => {
     const [inProgress, setInProgress] = useState(false);
@@ -202,11 +204,14 @@ const InactiveStackActions = ({ project, onAddNotification, onStackRemoved }: {
 
     const startStack = () => {
         setInProgress(true);
+        onStartError(null);
         client.readBuildFlag(dir)
                 .then(build => client.composeAction(dir, "up", build))
                 .catch(ex => {
+                    const detail = ex.message || String(ex);
                     const error = cockpit.format(_("Failed to start stack $0"), project); // not-covered: OS error
-                    onAddNotification({ type: 'danger', error, errorDetail: ex.message });
+                    onStartError({ project, detail });
+                    onAddNotification({ type: 'danger', error, errorDetail: detail });
                 })
                 .finally(() => setInProgress(false));
     };
@@ -565,6 +570,9 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
     const [showPortMapModal, setShowPortMapModal] = useState(false);
     const [stacks, setStacks] = useState<string[]>([]);
     const [highlightedContainers, setHighlightedContainers] = useState<Record<string, boolean>>({});
+    // Failure of the last inactive stack start, shown as an inline alert
+    // instead of leaving the Start button stuck in its loading state
+    const [stackStartError, setStackStartError] = useState<{ project: string, detail: string } | null>(null);
     const cardRef = useRef<HTMLDivElement>(null);
     // The last observed state of each container, to detect status changes and
     // briefly highlight the changed row like a new row.
@@ -1080,35 +1088,48 @@ const Containers = ({ containers, containersStats, images, filter, handleFilterC
                                     );
                                 })}
                         {inactiveStacks.length > 0 &&
-                            <Card className="container-inactive-stacks" isPlain>
-                                <CardHeader>
-                                    <CardTitle>
-                                        <Content component={ContentVariants.h2}>{_("Inactive stacks")}</Content>
-                                    </CardTitle>
-                                </CardHeader>
-                                <ListingTable
-                                    variant='compact'
-                                    aria-label={_("Inactive stacks")}
-                                    columns={[
-                                        { title: _("Name") },
-                                        { title: "", props: { screenReaderText: _("Actions") } },
-                                    ]}
-                                    rows={inactiveStacks.map(project => ({
-                                        expandedContent: null,
-                                        columns: [
-                                            { title: project },
-                                            {
-                                                title: (
-                                                    <InactiveStackActions project={project} onAddNotification={onAddNotification} onStackRemoved={refreshStacks} />
-                                                ),
-                                                props: { className: "pf-v6-c-table__action" },
-                                            },
-                                        ],
-                                        initiallyExpanded: false,
-                                        props: { key: `inactive-${project}`, "data-row-id": `inactive-${project}`, "data-row-name": project },
-                                    }))}
-                                />
-                            </Card>}
+                            <>
+                                {stackStartError &&
+                                    <ErrorNotification
+                                        errorMessage={cockpit.format(_("Failed to start stack $0"), stackStartError.project)}
+                                        errorDetail={stackStartError.detail}
+                                        onDismiss={() => setStackStartError(null)}
+                                    />}
+                                <Card className="container-inactive-stacks" isPlain>
+                                    <CardHeader>
+                                        <CardTitle>
+                                            <Content component={ContentVariants.h2}>{_("Inactive stacks")}</Content>
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <ListingTable
+                                        variant='compact'
+                                        aria-label={_("Inactive stacks")}
+                                        columns={[
+                                            { title: _("Name") },
+                                            { title: "", props: { screenReaderText: _("Actions") } },
+                                        ]}
+                                        rows={inactiveStacks.map(project => ({
+                                            expandedContent: null,
+                                            columns: [
+                                                { title: project },
+                                                {
+                                                    title: (
+                                                        <InactiveStackActions
+                                                            project={project}
+                                                            onAddNotification={onAddNotification}
+                                                            onStartError={setStackStartError}
+                                                            onStackRemoved={refreshStacks}
+                                                        />
+                                                    ),
+                                                    props: { className: "pf-v6-c-table__action" },
+                                                },
+                                            ],
+                                            initiallyExpanded: false,
+                                            props: { key: `inactive-${project}`, "data-row-id": `inactive-${project}`, "data-row-name": project },
+                                        }))}
+                                    />
+                                </Card>
+                            </>}
                     </Flex>
                     {showPruneUnusedContainersModal &&
                     <PruneUnusedContainersModal

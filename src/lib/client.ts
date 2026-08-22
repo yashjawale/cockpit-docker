@@ -295,7 +295,11 @@ export const untagImage = (con: Connection, repo: string, tag: string) => docker
 /**
  * Pull an image from a registry by its reference.
  *
- * Rejects if the last progress message contains an error.
+ * The daemon streams one JSON status object per line and keeps the HTTP status
+ * at 200 even when the pull fails, reporting the error as a terminal
+ * {"error": ...} message. Scan every line for it (an error may be followed by
+ * trailing progress lines), so that a pull failure is always reported as a
+ * rejection instead of resolving silently.
  *
  * @param con       An established Docker API connection
  * @param reference Image reference in the form name[:tag]
@@ -304,16 +308,28 @@ export function pullImage(con: Connection, reference: string) {
     return new Promise<void>((resolve, reject) => {
         dockerCall(con, "images/create", "POST", { fromImage: reference })
                 .then(r => {
-                    // Need to check the last response if it contains error
-                    const responses = r.trim().split("\n");
-                    const response = JSON.parse(responses[responses.length - 1]);
-                    if (response.error) {
-                        response.message = response.error;
-                        reject(response);
-                    } else if (response.cause) // present for 400 and 500 errors
-                        reject(response);
-                    else
-                        resolve();
+                    for (const line of r.split("\n")) {
+                        const trimmed = line.trim();
+                        if (trimmed.length === 0)
+                            continue;
+                        let response: { error?: string, cause?: string, errorDetail?: { message?: string } };
+                        try {
+                            response = JSON.parse(trimmed);
+                        } catch {
+                            // ignore malformed progress lines, they are not fatal
+                            continue;
+                        }
+                        if (response.error) {
+                            // reject with a real Error carrying the daemon's
+                            // structured error detail for the notification
+                            reject(Object.assign(new Error(response.error), { errorDetail: response.errorDetail }));
+                            return;
+                        } else if (response.cause) { // present for 400 and 500 errors
+                            reject(response);
+                            return;
+                        }
+                    }
+                    resolve();
                 })
                 .catch(reject);
     });

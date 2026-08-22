@@ -14,6 +14,7 @@ import { Divider } from "@patternfly/react-core/dist/esm/components/Divider";
 import { DropdownItem } from '@patternfly/react-core/dist/esm/components/Dropdown/index.js';
 import { ExpandableSection } from "@patternfly/react-core/dist/esm/components/ExpandableSection";
 import { Label } from "@patternfly/react-core/dist/esm/components/Label";
+import { Spinner } from "@patternfly/react-core/dist/esm/components/Spinner";
 import { Flex, FlexItem } from "@patternfly/react-core/dist/esm/layouts/Flex";
 import { cellWidth, SortByDirection } from '@patternfly/react-table';
 import { KebabDropdown } from "cockpit-components-dropdown.jsx";
@@ -37,7 +38,7 @@ import { useDockerInfo } from '../lib/context.tsx';
 
 import type { ListingTableColumnProps, ListingTableRowProps } from "cockpit-components-table";
 import type { Connection } from '../lib/rest.ts';
-import type { DockerImage, ImageUse, Notification, User } from '../lib/types.ts';
+import type { DockerError, DockerImage, ImageUse, Notification, Uid, User } from '../lib/types.ts';
 
 import '../styles/Images.scss';
 import '@patternfly/react-styles/css/utilities/Sizing/sizing.css';
@@ -102,6 +103,69 @@ const isLocalImage = (image: DockerImage): boolean => {
 const isNamelessImage = (image: DockerImage): boolean =>
     (image.RepoTags ?? []).every(tag => tag === "<none>:<none>");
 
+/** An image pull that is currently running (or was running recently) */
+interface PullInProgress {
+    /** Full image reference being pulled, e.g. "quay.io/org/image:latest" */
+    reference: string;
+    /** uid of the daemon the pull runs against; null for the session user */
+    uid: Uid;
+    /** Epoch milliseconds when the pull was started (or restored after a reload) */
+    startedAt: number;
+}
+
+/**
+ * sessionStorage key persisting the in-progress pulls across browser reloads.
+ *
+ * A reload tears down the React state, but the user must still see that a
+ * pull was happening and must not be able to trigger a duplicate one, so the
+ * list of running pulls is written here on every change and restored on load.
+ */
+const PULLS_STORAGE_KEY = "cockpit-docker:image-pulls-in-progress";
+
+/** How long a restored pull entry is trusted without live confirmation before it is dropped */
+const PULL_STALE_MS = 10 * 60 * 1000;
+
+/**
+ * Read the persisted in-progress pulls from sessionStorage.
+ *
+ * Malformed or outdated entries are dropped instead of breaking the card.
+ *
+ * @param raw The raw JSON string, or null when nothing was stored
+ * @returns The list of pulls to consider in progress
+ */
+const parsePersistedPulls = (raw: string | null): PullInProgress[] => {
+    if (!raw)
+        return [];
+    try {
+        const parsed: unknown = JSON.parse(raw);
+        if (!Array.isArray(parsed))
+            return [];
+        return parsed.filter((entry): entry is PullInProgress =>
+            typeof entry === "object" && entry !== null &&
+            typeof (entry as PullInProgress).reference === "string" &&
+            ((entry as PullInProgress).uid === null || Number.isInteger((entry as PullInProgress).uid)) &&
+            typeof (entry as PullInProgress).startedAt === "number");
+    } catch {
+        return [];
+    }
+};
+
+/**
+ * Write the in-progress pulls to sessionStorage.
+ *
+ * Failures (e.g. storage disabled) only cost the reload persistence, never
+ * the pull itself, so they are ignored.
+ *
+ * @param pulls The list of pulls to persist
+ */
+const savePulls = (pulls: PullInProgress[]) => {
+    try {
+        sessionStorage.setItem(PULLS_STORAGE_KEY, JSON.stringify(pulls));
+    } catch {
+        /* ignore */
+    }
+};
+
 /**
  * Detect images whose mutable ":latest" tag has a newer version available in
  * its registry.
@@ -114,9 +178,14 @@ const isNamelessImage = (image: DockerImage): boolean =>
  * registry cannot be reached are reported as up-to-date.
  *
  * @param images All images, keyed by their state key, or null while loading
- * @returns A map of image state key to whether an update is available
+ * @returns The update flags keyed by image state key, plus a callback refreshing the checks for one pulled reference
  */
-const useImageUpdates = (images: Record<string, DockerImage> | null): Record<string, boolean> => {
+const useImageUpdates = (images: Record<string, DockerImage> | null): {
+    /** Keys of images whose ":latest" tag has a newer version in its registry */
+    updates: Record<string, boolean>,
+    /** Re-run the registry check for all images with the given reference */
+    recheckReference: (reference: string) => void,
+} => {
     const [updates, setUpdates] = useState<Record<string, boolean>>({});
     // keys of images that a registry lookup is already running for
     const inflightRef = useRef<Record<string, boolean>>({});
@@ -187,6 +256,32 @@ const useImageUpdates = (images: Record<string, DockerImage> | null): Record<str
                 });
     }, []);
 
+    /**
+     * Re-run the registry check for every image carrying the given reference.
+     *
+     * Used after a pull of that reference finished: the recorded digests may
+     * have changed, so cached results must be dropped and the affected images
+     * checked again to keep the "Update available" badge accurate.
+     *
+     * @param reference The full image reference (name[:tag]) that was pulled
+     */
+    const recheckReference = useCallback((reference: string) => {
+        Object.entries(imagesRef.current ?? {}).forEach(([key, image]) => {
+            if ((image.RepoTags ?? []).includes(reference)) {
+                delete checkedRef.current[key];
+                setUpdates(prev => {
+                    if (prev[key] === undefined)
+                        return prev;
+                    const next = { ...prev };
+                    delete next[key];
+                    return next;
+                });
+                if (!inflightRef.current[key])
+                    runCheck(key, image);
+            }
+        });
+    }, [runCheck]);
+
     useEffect(() => {
         if (images === null)
             return;
@@ -222,7 +317,7 @@ const useImageUpdates = (images: Record<string, DockerImage> | null): Record<str
         Object.values(retryTimersRef.current).forEach(timer => window.clearTimeout(timer));
     }, []);
 
-    return updates;
+    return { updates, recheckReference };
 };
 
 /**
@@ -237,40 +332,142 @@ const Images = ({ images, imageContainerList, onAddNotification, textFilter, own
     const Dialogs = useDialogs();
     const [intermediateOpened, setIntermediateOpened] = useState(false);
     const [isExpanded, setIsExpanded] = useState(false);
-    // List of container image names which are being downloaded
-    const [imageDownloadInProgress, setImageDownloadInProgress] = useState<string[]>([]);
+    // Image pulls that are currently running; restored from sessionStorage so
+    // that they survive a browser reload and cannot be triggered twice
+    const [pullsInProgress, setPullsInProgress] = useState<PullInProgress[]>(() => parsePersistedPulls(sessionStorage.getItem(PULLS_STORAGE_KEY)));
+    // always-current mirror of pullsInProgress for synchronous helpers
+    const pullsRef = useRef(pullsInProgress);
+    pullsRef.current = pullsInProgress;
     const [showPruneUnusedImagesModal, setShowPruneUnusedImagesModal] = useState(false);
     // images whose ":latest" tag has a newer version in its registry
-    const updates = useImageUpdates(images);
+    const { updates, recheckReference } = useImageUpdates(images);
 
     /**
-     * Pull an image from a registry, tracking the download in the footer.
+     * Replace the list of in-progress pulls, persisting it for reloads.
+     *
+     * @param next The new list of pulls
+     */
+    const replacePulls = useCallback((next: PullInProgress[]) => {
+        pullsRef.current = next;
+        savePulls(next);
+        setPullsInProgress(next);
+    }, []);
+
+    /**
+     * Record an image pull as in progress.
+     *
+     * @param entry The pull to track
+     */
+    const trackPull = useCallback((entry: PullInProgress) => {
+        replacePulls([
+            ...pullsRef.current.filter(p => !(p.reference === entry.reference && p.uid === entry.uid)),
+            entry,
+        ]);
+    }, [replacePulls]);
+
+    /**
+     * Drop the tracking entry of a finished image pull.
+     *
+     * @param reference Full image reference of the finished pull
+     * @param uid       uid of the daemon the pull ran against
+     */
+    const untrackPull = useCallback((reference: string, uid: Uid) => {
+        const next = pullsRef.current.filter(p => !(p.reference === reference && p.uid === uid));
+        if (next.length !== pullsRef.current.length)
+            replacePulls(next);
+    }, [replacePulls]);
+
+    /**
+     * Drop all tracking entries matching a predicate.
+     *
+     * Used to reconcile restored entries with reality: entries of daemons that
+     * went away and entries that went stale must not block the UI forever,
+     * since no live promise exists for them anymore after a reload.
+     *
+     * @param drop Predicate deciding which entries to remove
+     */
+    const untrackWhere = useCallback((drop: (pull: PullInProgress) => boolean) => {
+        const next = pullsRef.current.filter(p => !drop(p));
+        if (next.length !== pullsRef.current.length)
+            replacePulls(next);
+    }, [replacePulls]);
+
+    // Reconcile the tracked pulls whenever fresh data arrives:
+    // - an entry whose owner daemon disappeared entirely (its user entry was
+    //   cleaned up after a failed connection) can no longer be running,
+    // - an entry older than PULL_STALE_MS is considered lost; without this
+    //   safety net a pull interrupted by a reload would block the action forever.
+    useEffect(() => {
+        if (images === null)
+            return;
+        untrackWhere(pull => !users.some(u => u.uid === pull.uid) ||
+                               Date.now() - pull.startedAt > PULL_STALE_MS);
+    }, [images, users, untrackWhere]);
+
+    // Also prune stale entries while nothing else changes
+    useEffect(() => {
+        const timer = window.setInterval(() => {
+            untrackWhere(pull => Date.now() - pull.startedAt > PULL_STALE_MS);
+        }, 30000);
+        return () => window.clearInterval(timer);
+    }, [untrackWhere]);
+
+    /**
+     * Whether a pull of this image is currently in progress.
+     *
+     * While it runs the row shows "Update in progress" instead of the stale
+     * "Update available" badge, and its Pull action is disabled.
+     *
+     * @param image The image to check
+     */
+    const isImageUpdating = (image: DockerImage): boolean =>
+        pullsInProgress.some(pull => pull.uid === image.uid && (image.RepoTags ?? []).includes(pull.reference));
+
+    /**
+     * Pull an image from a registry, tracking the download until it settles.
+     *
+     * The tracking entry persists across browser reloads, so the footer keeps
+     * showing the running pull and its action cannot be triggered twice. On
+     * any outcome (success, error or lost connection) the entry is dropped;
+     * errors are reported as toast notifications instead of leaving the card
+     * in a loading state.
      *
      * @param imageName Name of the image to pull
      * @param imageTag  Optional tag to pull, "latest" is used on failure messages
      * @param con       Connection of the daemon to pull into
      */
-    const downloadImage = (imageName: string, imageTag: string | null, con: Connection) => {
-        let pullImageId = imageName;
-        if (imageTag)
-            pullImageId += `:${imageTag}`;
+    const downloadImage = useCallback((imageName: string, imageTag: string | null, con: Connection) => {
+        const reference = imageTag ? `${imageName}:${imageTag}` : imageName;
 
-        setImageDownloadInProgress(previous => [...previous, imageName]);
-        client.pullImage(con, pullImageId)
+        // Never run two pulls of the same reference on the same daemon; the
+        // tracking survives reloads, so this also guards restored entries.
+        if (pullsRef.current.some(p => p.reference === reference && p.uid === con.uid))
+            return;
+
+        trackPull({ reference, uid: con.uid, startedAt: Date.now() });
+
+        client.pullImage(con, reference)
                 .then(() => {
-                    setImageDownloadInProgress(previous => previous.filter(image => image !== imageName));
+                    untrackPull(reference, con.uid);
+                    // The pull may have moved the local digests; refresh the
+                    // update badges of the affected images immediately.
+                    recheckReference(reference);
                 })
                 .catch(ex => {
-                    const error = cockpit.format(_("Failed to download image $0:$1"), imageName, imageTag || "latest");
+                    untrackPull(reference, con.uid);
+                    const err = ex as DockerError;
+                    const detail = [err.reason ?? "", err.message ?? String(ex)]
+                            .filter(part => part.length > 0)
+                            .join(": ");
+                    const error = cockpit.format(_("Failed to download image $0"), reference);
                     const errorDetail = (
                         <p> {_("Error message")}:
-                            <samp>{cockpit.format("$0 $1", ex.message, ex.reason)}</samp>
+                            <samp>{detail}</samp>
                         </p>
                     );
-                    setImageDownloadInProgress(previous => previous.filter(image => image !== imageName));
                     onAddNotification({ type: 'danger', error, errorDetail });
                 });
-    };
+    }, [onAddNotification, recheckReference, trackPull, untrackPull]);
 
     const onOpenNewImagesDialog = () => {
         Dialogs.show(<ImageSearchModal downloadImage={downloadImage} users={users} />);
@@ -372,7 +569,9 @@ const Images = ({ images, imageContainerList, onAddNotification, textFilter, own
                     <>
                         <span className="image-name">{image_name(image)}</span>
                         {isLocalImage(image) && <Badge isRead className="ct-badge-image-local">{_("local")}</Badge>}
-                        {updates[image.key] && <Label color="orange" isCompact className="ct-badge-image-update">{_("Update available")}</Label>}
+                        {isImageUpdating(image)
+                            ? <Label color="blue" isCompact icon={<Spinner size="sm" />} className="ct-badge-image-update">{_("Update in progress")}</Label>
+                            : updates[image.key] && <Label color="orange" isCompact className="ct-badge-image-update">{_("Update available")}</Label>}
                     </>
                 ),
                 header: true,
@@ -390,6 +589,7 @@ const Images = ({ images, imageContainerList, onAddNotification, textFilter, own
                         con={user.con as Connection}
                         image={image}
                         localImages={localImages}
+                        pullInProgress={isImageUpdating(image)}
                         onAddNotification={onAddNotification}
                         users={users}
                         downloadImage={downloadImage}
@@ -528,7 +728,10 @@ const Images = ({ images, imageContainerList, onAddNotification, textFilter, own
     );
 
     const { imageStats, unusedImages } = calculateStats();
-    const updateCount = Object.values(updates).filter(Boolean).length;
+    // images with a pending update, excluding the ones currently being pulled
+    const updateCount = images
+        ? Object.values(images).filter(image => updates[image.key] && !isImageUpdating(image)).length
+        : 0;
     const imageTitleStats = (
         <>
             <Content>
@@ -599,9 +802,9 @@ const Images = ({ images, imageContainerList, onAddNotification, textFilter, own
                     users={users}
                 />
             )}
-            {imageDownloadInProgress.length > 0 && (
+            {pullsInProgress.length > 0 && (
                 <CardFooter>
-                    <div className='download-in-progress'> {_("Pulling")} {imageDownloadInProgress.join(', ')}... </div>
+                    <div className='download-in-progress'> {_("Pulling")} {pullsInProgress.map(pull => pull.reference).join(', ')}... </div>
                 </CardFooter>
             )}
         </Card>
@@ -692,6 +895,8 @@ type ImageActionsProps = {
     image: DockerImage,
     /** Local images offered to the run dialog's typeahead */
     localImages: DockerImage[] | null,
+    /** Whether a pull of this image is currently in progress, disabling the pull action */
+    pullInProgress: boolean,
     /** Callback reporting errors as toast notifications */
     onAddNotification: (notification: Notification) => void,
     /** Users that own a Docker daemon */
@@ -704,7 +909,7 @@ type ImageActionsProps = {
  * The per-row actions: create a container from the image, pull it again, or
  * delete it. Creating a container opens the ImageRunModal dialog.
  */
-const ImageActions = ({ con, image, localImages, onAddNotification, users, downloadImage }: ImageActionsProps) => {
+const ImageActions = ({ con, image, localImages, pullInProgress, onAddNotification, users, downloadImage }: ImageActionsProps) => {
     const Dialogs = useDialogs();
     const dockerInfo = useDockerInfo();
     cockpit.assert(dockerInfo, "Docker info not available");
@@ -764,8 +969,8 @@ const ImageActions = ({ con, image, localImages, onAddNotification, users, downl
             key={`${image.Id}pull`}
             component="button"
             onClick={pullImage}
-            isDisabled={isLocalImage(image) || isNamelessImage(image)}
-            isAriaDisabled={isLocalImage(image) || isNamelessImage(image)}
+            isDisabled={isLocalImage(image) || isNamelessImage(image) || pullInProgress}
+            isAriaDisabled={isLocalImage(image) || isNamelessImage(image) || pullInProgress}
         >
             {_("Pull")}
         </DropdownItem>,

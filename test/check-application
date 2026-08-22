@@ -1060,6 +1060,13 @@ docker compose up -d && docker compose stop''')
             b.wait_visible(row + " .ct-badge-image-update")
             b.wait_in_text(row + " .ct-badge-image-update", "Update available")
             b.wait_visible("#containers-images [data-testid='images-update-count']")
+
+            # pulling the newer version must clear the badge again and finish
+            # the loading state instead of getting stuck in it
+            b.click(row + " .pf-v6-c-menu-toggle")
+            b.click(".pf-v6-c-menu__item:contains('Pull')")
+            b.wait_not_present(row + " .ct-badge-image-update")
+            b.wait_not_present("#containers-images .download-in-progress")
         finally:
             m.execute("docker rm -f test-updreg || true")
             m.execute("docker rmi localhost:5000/updtest:latest localhost:5000/updtest:v1backup || true")

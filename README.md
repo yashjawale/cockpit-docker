@@ -2,6 +2,22 @@
 
 A simple [Cockpit](https://cockpit-project.org/) plugin for managing docker container & images.
 
+![Cockpit Docker plugin screenshot](./screenshots/cockpit-docker.png)
+
+# Features
+
+- Manage images
+- Manage containers with integration (ports,volumes,etc)
+- Manage stacks (docker compose files)
+- Indicates image updates
+- Shows containers from docker compose profile
+- Shows a unified port map dialog helping you choose
+- Feels at home on cockpit
+
+# Installation
+
+> TODO: After figuring out distribution methods. currently only binaries & tar available from releases.
+
 # Development dependencies
 
 On Debian/Ubuntu:
@@ -212,3 +228,7 @@ It is important to keep your [NPM modules](./package.json) up to date, to keep
 up with security updates and bug fixes. This happens with
 [dependabot](https://github.com/dependabot),
 see [configuration file](.github/dependabot.yml).
+
+---
+
+<a href="https://yashjawale.github.io/" target="_blank"><img style="height: 22px;" src="https://raw.githubusercontent.com/yashjawale/.github/main/docs/logo.svg" alt="Yash Jawale"/></a>

@@ -36,9 +36,6 @@ const production = process.env.NODE_ENV === 'production';
 const nodePaths = ['pkg/lib'];
 const outdir = 'dist';
 
-// Obtain package name from package.json
-const packageJson = JSON.parse(fs.readFileSync('package.json'));
-
 const parser = (await import('argparse')).default.ArgumentParser();
 /* eslint-disable max-len */
 parser.add_argument('-r', '--rsync', { help: "rsync bundles to ssh target after build", metavar: "HOST" });

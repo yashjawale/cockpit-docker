@@ -32,7 +32,7 @@ jobs:
 
       # https://github.blog/2022-04-12-git-security-vulnerability-announced/
       - name: Pacify git's permission check
-        run: git config --global --add safe.directory /__w/cockpit-whale/cockpit-whale
+        run: git config --global --add safe.directory '*'
 
       - name: Fix KVM permissions
         run: chmod 666 /dev/kvm 2>/dev/null || true

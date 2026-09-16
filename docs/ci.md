@@ -26,8 +26,7 @@ tests on Fedora/CentOS Stream).
   No GitHub release is created; artifacts are uploaded to the run.
 
 Known pitfalls (fixed):
-- `safe.directory` must be the exact repo path (`/__w/cockpit-whale/cockpit-whale`),
-  not `/__w/` (git matches exact paths).
+- `safe.directory` is set to `'*'` to cover `/__w/cockpit-whale/cockpit-whale` and `/src` mounts (git matches exact paths; `'*'` is future-proof for renames).
 - Extract only the *main* tarball (`cockpit-whale-[0-9]*.tar.xz`), never the
   node cache (`cockpit-whale-node-*.tar.xz`) with the same glob.
 - Debian needs `build-essential` (the `dh` toolchain) in the `debian` job.

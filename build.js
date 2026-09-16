@@ -136,7 +136,7 @@ const context = await esbuild.context({
 
         cockpitPoEsbuildPlugin(),
         ...production ? [cockpitCompressPlugin()] : [],
-        cockpitRsyncEsbuildPlugin({ dest: packageJson.name }),
+        cockpitRsyncEsbuildPlugin({ dest: "docker" }),
         notifyEndPlugin(),
     ]
 });

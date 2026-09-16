@@ -1,9 +1,9 @@
 {
-  "name": "cockpit-docker",
+  "name": "cockpit-whale",
   "description": "A simple cockpit plugin for managing docker containers",
   "type": "module",
   "main": "index.js",
-  "repository": "git@github.com:yashjawale/cockpit-docker.git",
+  "repository": "git@github.com:yashjawale/cockpit-whale.git",
   "author": "",
   "license": "LGPL-2.1",
   "engines": {

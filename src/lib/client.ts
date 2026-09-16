@@ -409,7 +409,7 @@ export const containerExists = (con: Connection, id: string) => dockerCall(con, 
 /* === docker-compose stacks ============================================== */
 
 /** Fallback directory for stack files when the session user's home is unknown */
-export const STACKS_DIR = "/var/lib/cockpit-docker/stacks";
+export const STACKS_DIR = "/var/lib/cockpit-whale/stacks";
 
 /**
  * Resolve the directory that holds the stack files of the session user.
@@ -425,7 +425,7 @@ export const STACKS_DIR = "/var/lib/cockpit-docker/stacks";
  */
 export function getStacksDir(): string {
     const home = sessionStorage.getItem('DOCKER_DESKTOP_HOME');
-    return home ? `${home}/.local/share/cockpit-docker/stacks` : STACKS_DIR;
+    return home ? `${home}/.local/share/cockpit-whale/stacks` : STACKS_DIR;
 }
 
 /**

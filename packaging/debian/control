@@ -1,13 +1,13 @@
-Source: cockpit-docker
+Source: cockpit-whale
 Section: admin
 Priority: optional
-Maintainer: Yash Jawale <yash25.j@gmail.com>
+Maintainer: Yash Jawale <connect@yashjawale.in>
 Build-Depends: debhelper-compat (= 13), gettext
 Standards-Version: 4.6.2
 Rules-Requires-Root: no
-Homepage: https://github.com/yashjawale/cockpit-docker
+Homepage: https://github.com/yashjawale/cockpit-whale
 
-Package: cockpit-docker
+Package: cockpit-whale
 Architecture: all
 Multi-Arch: foreign
 Depends: ${misc:Depends},

@@ -1,6 +1,6 @@
 # Daemon connections, ownership and state sync
 
-This is a deeper dive into the part of cockpit-docker that is easiest to get
+This is a deeper dive into the part of cockpit-whale that is easiest to get
 wrong: talking to **multiple Docker daemons** and keeping the UI state in sync
 with them. Read `docs/architecture.md` first for the general layout.
 
@@ -106,7 +106,7 @@ API. They always live in the session user's own data directory, so the compose
 files are owned by the user and directories that a stack bind-mounts into its
 containers behave like a local `docker compose up` in the user's home:
 
-- `getStacksDir()` — `$HOME/.local/share/cockpit-docker/stacks`, the session
+- `getStacksDir()` — `$HOME/.local/share/cockpit-whale/stacks`, the session
   user's home coming from `cockpit.user()` (stored as `DOCKER_DESKTOP_HOME`).
 - `listStacks()` — `find` over the stacks directory (empty/missing → []).
 - `composeAction(dir, action, build)` — `docker compose up -d` / `docker

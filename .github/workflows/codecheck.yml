@@ -6,7 +6,7 @@ on:
     branches:
       - main
   pull_request:
-  # allow manual runs from https://github.com/yashjawale/cockpit-docker/actions
+  # allow manual runs from https://github.com/yashjawale/cockpit-whale/actions
   workflow_dispatch:
 # cancel superseded runs on the same branch/pull request
 concurrency:
@@ -27,7 +27,7 @@ jobs:
 
       # https://github.blog/2022-04-12-git-security-vulnerability-announced/
       - name: Pacify git's permission check
-        run: git config --global --add safe.directory /__w/cockpit-docker/cockpit-docker
+        run: git config --global --add safe.directory /__w/cockpit-whale/cockpit-whale
 
       - name: Run static code checks
         run: make codecheck

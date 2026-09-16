@@ -3,7 +3,7 @@ PACKAGE_NAME := $(shell awk '/"name":/ {gsub(/[",]/, "", $$2); print $$2}' packa
 # directory name under /usr/share/cockpit, which becomes the URL path of the module
 WEB_DIR := docker
 # this project's package name already carries the cockpit- prefix (e.g. its
-# RPM name is cockpit-docker), unlike upstream modules which use a bare name
+# RPM name is cockpit-whale), unlike upstream modules which use a bare name
 RPM_NAME := $(if $(filter cockpit-%,$(PACKAGE_NAME)),$(PACKAGE_NAME),cockpit-$(PACKAGE_NAME))
 VERSION := $(shell T=$$(git describe 2>/dev/null) || T=1; echo $$T | tr '-' '.')
 ifeq ($(TEST_OS),)
@@ -14,7 +14,7 @@ TARFILE=$(RPM_NAME)-$(VERSION).tar.xz
 NODE_CACHE=$(RPM_NAME)-node-$(VERSION).tar.xz
 SPEC=$(RPM_NAME).spec
 PREFIX ?= /usr/local
-APPSTREAMFILE=in.yashjawale.cockpit_docker.metainfo.xml
+APPSTREAMFILE=in.yashjawale.cockpit_whale.metainfo.xml
 VM_IMAGE=$(CURDIR)/test/images/$(TEST_OS)
 # stamp file to check for node_modules/
 NODE_MODULES_TEST=package-lock.json

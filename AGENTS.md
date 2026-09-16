@@ -4,9 +4,9 @@ Guidance for AI coding agents and contributors working in this repository.
 
 ## Project overview
 
-`cockpit-docker` is a [Cockpit](https://cockpit-project.org/) plugin for
+`cockpit-whale` is a [Cockpit](https://cockpit-project.org/) plugin for
 managing Docker containers and images. It builds a web UI into `dist/` with
-esbuild, and is packaged as RPM, Debian, and Arch artifacts.
+esbuild, and is packaged as RPM, Debian, and Arch artifacts. The Cockpit UI is served at `/docker`.
 
 ## Documentation
 

@@ -1,7 +1,7 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: cockpit-docker
-Upstream-Contact: Yash Jawale <yash25.j@gmail.com>
-Source: https://github.com/yashjawale/cockpit-docker
+Upstream-Name: cockpit-whale
+Upstream-Contact: Yash Jawale <connect@yashjawale.in>
+Source: https://github.com/yashjawale/cockpit-whale
 
 Files: *
 Copyright: 2024-2025 Yash Jawale
@@ -12,7 +12,7 @@ Copyright: 2024-2025 Yash Jawale
 License: LGPL-2.1-or-later
 
 License: LGPL-2.1-or-later
- Cockpit Docker is free software: you can redistribute it and/or modify it
+ Cockpit Whale is free software: you can redistribute it and/or modify it
  under the terms of the GNU Lesser General Public License as published by the
  Free Software Foundation, either version 2.1 of the License, or (at your
  option) any later version.

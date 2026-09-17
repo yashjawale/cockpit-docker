@@ -1,8 +1,8 @@
-# Cockpit Docker
+# Cockpit Whale
 
 A simple [Cockpit](https://cockpit-project.org/) plugin for managing docker container & images.
 
-![Cockpit Docker plugin screenshot](./screenshots/cockpit-docker.png)
+![Cockpit Whale plugin screenshot](./screenshots/cockpit-whale.png)
 
 # Features
 
@@ -37,8 +37,8 @@ On openSUSE Tumbleweed and Leap:
 These commands check out the source and build it into the `dist/` directory:
 
 ```
-git clone https://github.com/yashjawale/cockpit-docker.git
-cd cockpit-docker
+git clone https://github.com/yashjawale/cockpit-whale.git
+cd cockpit-whale
 make
 ```
 
@@ -56,8 +56,8 @@ duplicate this behavior.
 
 The project ships packaging metadata for several distributions:
 
-- RPM: `cockpit-docker.spec` (generated from
-  `packaging/cockpit-docker.spec.in`), built with `make srpm` / `make rpm` and
+- RPM: `cockpit-whale.spec` (generated from
+  `packaging/cockpit-whale.spec.in`), built with `make srpm` / `make rpm` and
   published through [Packit](./packit.yaml). The
   [release](./.github/workflows/release.yml) workflow also builds an RPM from
   the release tarball on CentOS Stream and attaches it to every GitHub release.
@@ -111,7 +111,7 @@ remove manually the symlink:
 
 # Running eslint
 
-Cockpit Docker uses [ESLint](https://eslint.org/) to automatically check
+Cockpit Whale uses [ESLint](https://eslint.org/) to automatically check
 JavaScript/TypeScript code style in `.js[x]` and `.ts[x]` files.
 
 eslint is executed as part of `test/static-code`, aka. `make codecheck`.

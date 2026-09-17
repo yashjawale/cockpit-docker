@@ -26,10 +26,9 @@ tests on Fedora/CentOS Stream).
   No GitHub release is created; artifacts are uploaded to the run.
 
 Known pitfalls (fixed):
-- `safe.directory` must be the exact repo path (`/__w/cockpit-docker/cockpit-docker`),
-  not `/__w/` (git matches exact paths).
-- Extract only the *main* tarball (`cockpit-docker-[0-9]*.tar.xz`), never the
-  node cache (`cockpit-docker-node-*.tar.xz`) with the same glob.
+- `safe.directory` is set to `'*'` to cover `/__w/cockpit-whale/cockpit-whale` and `/src` mounts (git matches exact paths; `'*'` is future-proof for renames).
+- Extract only the *main* tarball (`cockpit-whale-[0-9]*.tar.xz`), never the
+  node cache (`cockpit-whale-node-*.tar.xz`) with the same glob.
 - Debian needs `build-essential` (the `dh` toolchain) in the `debian` job.
 
 ## Packit (`packit.yaml`)
@@ -41,7 +40,7 @@ Runs on Packit-as-a-service; see `docs/packit-setup.md` for setup and findings.
   centos-stream-10. Runs the tmt plan `plans/all.fmf` → `test/browser/`.
 - `copr_build` (PR): builds RPMs for the same targets in a throwaway COPR
   project.
-- `copr_build` (release): tag pushes build RPMs in `yashjawale/cockpit-docker`.
+- `copr_build` (release): tag pushes build RPMs in `yashjawale/cockpit-whale`.
 
 The tests run in the tasks container against the Testing Farm host itself
 (`localhost:22` / `localhost:9090`), so no nested VMs are needed.

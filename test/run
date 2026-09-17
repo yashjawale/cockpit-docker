@@ -10,4 +10,4 @@ export RUN_TESTS_OPTIONS=--track-naughties
 
 make codecheck
 make check
-make po/cockpit-docker.pot
+make po/cockpit-whale.pot

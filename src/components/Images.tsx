@@ -120,7 +120,7 @@ interface PullInProgress {
  * pull was happening and must not be able to trigger a duplicate one, so the
  * list of running pulls is written here on every change and restored on load.
  */
-const PULLS_STORAGE_KEY = "cockpit-docker:image-pulls-in-progress";
+const PULLS_STORAGE_KEY = "cockpit-whale:image-pulls-in-progress";
 
 /** How long a restored pull entry is trusted without live confirmation before it is dropped */
 const PULL_STALE_MS = 10 * 60 * 1000;

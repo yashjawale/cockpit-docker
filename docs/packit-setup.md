@@ -4,7 +4,7 @@ Status: **working — Packit/COPR builds and Testing Farm browser tests pass.**
 The `test.yml` GitHub Actions workflow was disabled (`test.yml.disabled`) in
 favor of the Packit path; see `docs/ci.md` for the full CI picture.
 
-This file captures the setup and lessons learned for moving the cockpit-docker
+This file captures the setup and lessons learned for moving the cockpit-whale
 CI to Packit + Testing Farm, so future maintainers can reproduce/repair it.
 
 ## Why Packit instead of GitHub Actions
@@ -32,10 +32,10 @@ The killer difference vs. `make check` on GitHub Actions:
 ## What works
 
 - `packit validate packit.yaml` → ✅ valid. One harmless warning:
-  `Package 'cockpit-docker' does not exist` — only matters for
+  `Package 'cockpit-whale' does not exist` — only matters for
   `propose_downstream`/`koji`/`bodhi` jobs, which are disabled.
 - `packit srpm` → ✅ builds the source tarball and an SRPM
-  (`cockpit-docker-1-1.<timestamp>.main.fc44.src.rpm`). The `git describe`
+  (`cockpit-whale-1-1.<timestamp>.main.fc44.src.rpm`). The `git describe`
   "failed" log lines are noise from there being no tags yet; it correctly falls
   back to `make print-version` → `1`. All build artifacts are gitignored.
 - COPR RPM builds pass on all targets (fedora 43/44/rawhide, centos-stream 9/10,
@@ -48,7 +48,7 @@ The killer difference vs. `make check` on GitHub Actions:
 1. **Fedora account** (identity for COPR + Packit):
    https://accounts.fedoraproject.org/
 
-2. **Enable the Packit GitHub app** on `yashjawale/cockpit-docker`:
+2. **Enable the Packit GitHub app** on `yashjawale/cockpit-whale`:
    https://github.com/apps/packit-as-a-service (the "as a service" app; scope
    it to this repo).
 
@@ -62,7 +62,7 @@ The killer difference vs. `make check` on GitHub Actions:
 
 5. **Create the COPR project** for release builds:
    https://copr.fedorainfra.org/ → New project
-   - Name: `cockpit-docker`, Owner: `yashjawale`
+   - Name: `cockpit-whale`, Owner: `yashjawale`
    - Chroots: at least the release targets (`fedora-all`, `centos-stream-9-x86_64`)
      plus whatever you want for PR copr builds (fedora 43/44, centos-stream 9/10).
 
@@ -78,7 +78,7 @@ The killer difference vs. `make check` on GitHub Actions:
 - **Every PR**: `tests` (Testing Farm VMs) + `copr_build` jobs run.
 - **Merge to main**: `tests` runs again (`trigger: commit`, `branch: ^main$`).
 - **Tag push** (e.g. `123`): the release `copr_build` job builds RPMs in the
-  `yashjawale/cockpit-docker` COPR project; the GitHub `release.yml` workflow
+  `yashjawale/cockpit-whale` COPR project; the GitHub `release.yml` workflow
   creates the release with tarball + node cache + `.deb` + `.rpm`.
 
 ## Caveats / decisions

@@ -1,6 +1,6 @@
 # Architecture overview
 
-This document describes how the cockpit-docker module is structured and how it
+This document describes how the cockpit-whale module is structured and how it
 talks to the Docker daemon. It is aimed at contributors who want to understand
 or modify the codebase.
 
@@ -75,7 +75,7 @@ with a real connection once that daemon answers.
 
 Stacks (docker-compose) are the one feature that does use the docker CLI:
 `lib/client.ts:getStacksDir()` resolves where they live — always the session
-user's `~/.local/share/cockpit-docker/stacks`, so the files are owned by the
+user's `~/.local/share/cockpit-whale/stacks`, so the files are owned by the
 user and bind-mounted directories behave like a local `docker compose up`.
 `composeAction()` runs `docker compose up -d` / `docker compose stop` as the
 session user, retrying as root only when the user cannot reach the daemon
